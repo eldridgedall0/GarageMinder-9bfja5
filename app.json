@@ -1,0 +1,81 @@
+{
+  "expo": {
+    "name": "GarageMinder",
+    "slug": "garageminder",
+    "version": "1.5.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "garageminder",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.garageminder.mileage",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "GarageMinder needs your location to track mileage during trips",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "GarageMinder needs background location access to automatically track trips",
+        "NSLocationAlwaysUsageDescription": "GarageMinder needs background location access to automatically track trips",
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ],
+        "NSFaceIDUsageDescription": "GarageMinder uses Face ID to secure your account"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0a0a0a"
+      },
+      "package": "com.garageminder.mileage",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "GarageMinder needs background location access to automatically track your mileage.",
+          "locationWhenInUsePermission": "GarageMinder needs your location to track mileage during trips.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#FFD700"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "GarageMinder uses Face ID to secure your account"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
