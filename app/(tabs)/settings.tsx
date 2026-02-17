@@ -20,15 +20,18 @@ import {
   disableBiometric 
 } from '../../services/biometricService';
 import { useAlert } from '@/template';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { showAlert } = useAlert();
+  const { user, logout } = useAuth();
   
   const [subscription, setSubscription] = useState<SubscriptionLevel>('free');
   const [syncSettings, setSyncSettings] = useState<SyncSettings | null>(null);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -67,20 +70,29 @@ export default function SettingsScreen() {
     setSyncSettings(prev => prev ? { ...prev, autoSyncEnabled: enabled } : null);
   };
 
-  const handleBiometricToggle = async (enabled: boolean) => {
-    if (enabled) {
-      const success = await enableBiometric();
-      if (success) {
-        setBiometricEnabled(true);
-        showAlert('Success', 'Biometric unlock enabled');
-      } else {
-        showAlert('Failed', 'Could not enable biometric authentication');
-      }
-    } else {
-      await disableBiometric();
-      setBiometricEnabled(false);
-      showAlert('Disabled', 'Biometric unlock disabled');
-    }
+  const handleLogout = () => {
+    showAlert(
+      'Sign Out',
+      'Are you sure you want to sign out? Your local trip data will remain on this device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Sign Out', 
+          style: 'destructive',
+          onPress: async () => {
+            setIsLoggingOut(true);
+            try {
+              await logout();
+              // Navigation is handled by AuthProvider
+            } catch (error) {
+              showAlert('Error', 'Failed to sign out. Please try again.');
+            } finally {
+              setIsLoggingOut(false);
+            }
+          }
+        },
+      ]
+    );
   };
 
   const SettingRow = ({ 
@@ -126,6 +138,41 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Account Section */}
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          
+          {user && (
+            <View style={styles.accountInfo}>
+              <View style={styles.accountHeader}>
+                <MaterialIcons name="account-circle" size={48} color={theme.colors.primary} />
+                <View style={styles.accountDetails}>
+                  <Text style={styles.accountName}>{user.display_name}</Text>
+                  <Text style={styles.accountEmail}>{user.email}</Text>
+                  <View style={styles.accountBadge}>
+                    <MaterialIcons 
+                      name={user.subscription_level === 'paid' ? 'workspace-premium' : 'person'} 
+                      size={14} 
+                      color={theme.colors.primary} 
+                    />
+                    <Text style={styles.accountBadgeText}>
+                      {user.subscription_level === 'paid' ? 'Paid' : 'Free'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
+
+          <Button
+            title={isLoggingOut ? 'Signing Out...' : 'Sign Out'}
+            onPress={handleLogout}
+            variant="secondary"
+            disabled={isLoggingOut}
+            style={{ marginTop: theme.spacing.md }}
+          />
+        </Card>
+
         {/* Subscription Section */}
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Subscription</Text>
@@ -375,6 +422,46 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.labelSmall,
     color: theme.colors.textSubtle,
     flex: 1,
+    includeFontPadding: false,
+  },
+  accountInfo: {
+    marginBottom: theme.spacing.sm,
+  },
+  accountHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  accountDetails: {
+    flex: 1,
+  },
+  accountName: {
+    fontSize: theme.typography.bodyLarge,
+    fontWeight: theme.typography.weightSemiBold,
+    color: theme.colors.text,
+    includeFontPadding: false,
+  },
+  accountEmail: {
+    fontSize: theme.typography.bodyMedium,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+    includeFontPadding: false,
+  },
+  accountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 2,
+    backgroundColor: `${theme.colors.primary}15`,
+    borderRadius: theme.borderRadius.sm,
+    alignSelf: 'flex-start',
+  },
+  accountBadgeText: {
+    fontSize: theme.typography.labelSmall,
+    fontWeight: theme.typography.weightMedium,
+    color: theme.colors.primary,
     includeFontPadding: false,
   },
 });
