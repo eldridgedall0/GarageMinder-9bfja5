@@ -169,9 +169,11 @@ export default function SettingsScreen() {
     });
     const updated = await getDeviceMappings();
     setDeviceMappings(updated);
-    // Now show vehicle assignment
+    // Add small delay before showing next modal to prevent view hierarchy issues
     setPendingDevice(device);
-    setShowVehicleAssign(true);
+    setTimeout(() => {
+      setShowVehicleAssign(true);
+    }, 300);
   };
 
   const handleVehicleAssigned = async (vehicleId: string, vehicleName: string) => {
@@ -926,7 +928,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.headlineLarge,
     fontWeight: theme.typography.weightBold,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   scrollView: {
     flex: 1,
@@ -943,7 +944,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textSubtle,
     textTransform: 'uppercase',
     marginBottom: theme.spacing.md,
-    includeFontPadding: false,
   },
   subscriptionCard: {
     gap: theme.spacing.md,
@@ -960,13 +960,11 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyLarge,
     fontWeight: theme.typography.weightSemiBold,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   subscriptionDescription: {
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
     marginTop: 2,
-    includeFontPadding: false,
   },
   settingItem: {
     flexDirection: 'row',
@@ -987,12 +985,10 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weightMedium,
     color: theme.colors.text,
     marginBottom: 2,
-    includeFontPadding: false,
   },
   settingValue: {
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
-    includeFontPadding: false,
   },
   footer: {
     flexDirection: 'row',
@@ -1005,7 +1001,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.labelSmall,
     color: theme.colors.textSubtle,
     flex: 1,
-    includeFontPadding: false,
   },
   accountInfo: {
     marginBottom: theme.spacing.sm,
@@ -1022,13 +1017,11 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyLarge,
     fontWeight: theme.typography.weightSemiBold,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   accountEmail: {
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.textSecondary,
     marginTop: 2,
-    includeFontPadding: false,
   },
   accountBadge: {
     flexDirection: 'row',
@@ -1045,7 +1038,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.labelSmall,
     fontWeight: theme.typography.weightMedium,
     color: theme.colors.primary,
-    includeFontPadding: false,
   },
   // AutoStart styles
   autoStartHeader: {
@@ -1067,13 +1059,11 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyLarge,
     fontWeight: theme.typography.weightSemiBold,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   autoStartSubtitle: {
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
     lineHeight: theme.typography.bodySmall * 1.4,
-    includeFontPadding: false,
   },
   subSectionTitle: {
     fontSize: theme.typography.bodyMedium,
@@ -1081,14 +1071,12 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     marginBottom: theme.spacing.xs,
     marginTop: theme.spacing.sm,
-    includeFontPadding: false,
   },
   subSectionHint: {
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
     marginBottom: theme.spacing.md,
     lineHeight: theme.typography.bodySmall * 1.4,
-    includeFontPadding: false,
   },
   divider: {
     height: 1,
@@ -1104,7 +1092,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     fontWeight: theme.typography.weightMedium,
     color: theme.colors.textSecondary,
-    includeFontPadding: false,
   },
   emptyDevicesHint: {
     fontSize: theme.typography.bodySmall,
@@ -1112,7 +1099,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: theme.typography.bodySmall * 1.4,
     paddingHorizontal: theme.spacing.md,
-    includeFontPadding: false,
   },
   deviceList: {
     gap: theme.spacing.sm,
@@ -1149,13 +1135,11 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     fontWeight: theme.typography.weightMedium,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   deviceVehicle: {
     fontSize: theme.typography.bodySmall,
     color: theme.colors.primary,
     marginTop: 2,
-    includeFontPadding: false,
   },
   deviceVehicleUnset: {
     color: theme.colors.textSubtle,
@@ -1168,48 +1152,6 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     padding: theme.spacing.xs,
-  },
-  vehicleSelector: {
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    marginBottom: theme.spacing.md,
-    overflow: 'hidden',
-  },
-  vehicleSelectorTitle: {
-    fontSize: theme.typography.bodySmall,
-    fontWeight: theme.typography.weightMedium,
-    color: theme.colors.textSecondary,
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
-    includeFontPadding: false,
-  },
-  vehicleSelectorItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.borderSubtle,
-  },
-  vehicleSelectorItemText: {
-    fontSize: theme.typography.bodyMedium,
-    color: theme.colors.text,
-    includeFontPadding: false,
-  },
-  vehicleSelectorCancel: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.borderSubtle,
-  },
-  vehicleSelectorCancelText: {
-    fontSize: theme.typography.bodySmall,
-    color: theme.colors.textSubtle,
-    includeFontPadding: false,
   },
   addDeviceButton: {
     flexDirection: 'row',
@@ -1227,70 +1169,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.primary,
     fontWeight: theme.typography.weightMedium,
-    includeFontPadding: false,
-  },
-  addDeviceSheet: {
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    padding: theme.spacing.md,
-    marginTop: theme.spacing.sm,
-    gap: theme.spacing.sm,
-  },
-  addDeviceSheetTitle: {
-    fontSize: theme.typography.bodyMedium,
-    fontWeight: theme.typography.weightSemiBold,
-    color: theme.colors.text,
-    includeFontPadding: false,
-  },
-  addDeviceSheetHint: {
-    fontSize: theme.typography.bodySmall,
-    color: theme.colors.textSecondary,
-    lineHeight: theme.typography.bodySmall * 1.4,
-    includeFontPadding: false,
-  },
-  addDeviceInput: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    fontSize: theme.typography.bodyMedium,
-    color: theme.colors.text,
-    includeFontPadding: false,
-  },
-  addDeviceActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.xs,
-  },
-  addDeviceAction: {
-    flex: 1,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.sm,
-    alignItems: 'center',
-  },
-  addDeviceActionCancel: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  addDeviceActionCancelText: {
-    fontSize: theme.typography.bodyMedium,
-    color: theme.colors.textSecondary,
-    fontWeight: theme.typography.weightMedium,
-    includeFontPadding: false,
-  },
-  addDeviceActionConfirm: {
-    backgroundColor: theme.colors.primary,
-  },
-  addDeviceActionConfirmText: {
-    fontSize: theme.typography.bodyMedium,
-    color: '#FFFFFF',
-    fontWeight: theme.typography.weightSemiBold,
-    includeFontPadding: false,
   },
   // Trip Logging styles
   tripSettingGroup: {
@@ -1308,14 +1186,12 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     fontWeight: theme.typography.weightSemiBold,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   tripSettingSubtitle: {
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
     marginTop: 2,
     lineHeight: theme.typography.bodySmall * 1.4,
-    includeFontPadding: false,
   },
   optionPills: {
     flexDirection: 'row',
@@ -1338,7 +1214,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
     fontWeight: theme.typography.weightMedium,
-    includeFontPadding: false,
   },
   optionPillTextActive: {
     color: '#FFFFFF',
@@ -1358,7 +1233,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginBottom: theme.spacing.md,
     lineHeight: theme.typography.bodySmall * 1.4,
-    includeFontPadding: false,
   },
   permissionRow: {
     flexDirection: 'row',
@@ -1394,7 +1268,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     fontWeight: theme.typography.weightSemiBold,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   requiredBadge: {
     paddingHorizontal: 6,
@@ -1406,13 +1279,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: theme.typography.weightSemiBold,
     color: theme.colors.primary,
-    includeFontPadding: false,
   },
   permissionDescription: {
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
     lineHeight: theme.typography.bodySmall * 1.3,
-    includeFontPadding: false,
   },
   permissionActionHint: {
     flexDirection: 'row',
@@ -1423,7 +1294,6 @@ const styles = StyleSheet.create({
   permissionActionHintText: {
     fontSize: 11,
     fontWeight: theme.typography.weightMedium,
-    includeFontPadding: false,
   },
   permissionStatusBadge: {
     flexDirection: 'row',
@@ -1442,7 +1312,6 @@ const styles = StyleSheet.create({
   permissionStatusLabel: {
     fontSize: theme.typography.labelSmall,
     fontWeight: theme.typography.weightSemiBold,
-    includeFontPadding: false,
   },
   permissionsFooter: {
     flexDirection: 'row',
@@ -1458,6 +1327,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.labelSmall,
     color: theme.colors.textSubtle,
     lineHeight: theme.typography.labelSmall * 1.4,
-    includeFontPadding: false,
   },
 });
