@@ -34,14 +34,17 @@ export default function LoginScreen() {
     
     try {
       console.log('[LoginScreen] Attempting login...');
+      
+      // Login and wait for vehicles to load
       await login(username.trim(), password);
       
-      console.log('[LoginScreen] Login successful, navigating to home...');
+      console.log('[LoginScreen] Login successful, vehicles loaded');
       
-      // Small delay to ensure state updates
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Small delay to ensure state updates propagate
+      await new Promise(resolve => setTimeout(resolve, 200));
       
       // Navigate to home screen
+      console.log('[LoginScreen] Navigating to home...');
       router.replace('/(tabs)');
       
     } catch (error: any) {

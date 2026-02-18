@@ -64,30 +64,45 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const login = async (username: string, password: string) => {
+    // Clear old vehicle cache before logging in
+    console.log('[AuthContext] Clearing old vehicle cache...');
+    await clearVehicleCache();
+    
+    // Login and get user
+    console.log('[AuthContext] Logging in...');
     const loggedInUser = await authService.login(username, password);
     setUser(loggedInUser);
     setIsAuthenticated(true);
     
-    // Fetch user's vehicles from API
+    // Fetch user's vehicles from API - MUST complete before returning
+    console.log('[AuthContext] Fetching vehicles from API...');
     try {
-      await fetchVehiclesFromAPI();
+      const vehicles = await fetchVehiclesFromAPI();
+      console.log(`[AuthContext] Loaded ${vehicles.length} vehicles from API`);
     } catch (error) {
-      console.error('Failed to fetch vehicles after login:', error);
-      // Don't fail login if vehicle fetch fails
+      console.error('[AuthContext] Failed to fetch vehicles:', error);
+      throw new Error('Failed to load your vehicles. Please try again.');
     }
   };
 
   const loginWithCookies = async (cookies: string) => {
+    // Clear old vehicle cache
+    console.log('[AuthContext] Clearing old vehicle cache...');
+    await clearVehicleCache();
+    
+    // Exchange token and get user
     const loggedInUser = await authService.exchangeToken(cookies);
     setUser(loggedInUser);
     setIsAuthenticated(true);
     
-    // Fetch user's vehicles from API
+    // Fetch user's vehicles from API - MUST complete before returning
+    console.log('[AuthContext] Fetching vehicles from API...');
     try {
-      await fetchVehiclesFromAPI();
+      const vehicles = await fetchVehiclesFromAPI();
+      console.log(`[AuthContext] Loaded ${vehicles.length} vehicles from API`);
     } catch (error) {
-      console.error('Failed to fetch vehicles after login:', error);
-      // Don't fail login if vehicle fetch fails
+      console.error('[AuthContext] Failed to fetch vehicles:', error);
+      throw new Error('Failed to load your vehicles. Please try again.');
     }
   };
 

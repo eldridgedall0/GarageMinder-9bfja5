@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -9,15 +9,25 @@ import { ActiveTripCard } from '../../components/trip/ActiveTripCard';
 import { useTripTracking } from '../../hooks/useTripTracking';
 import { useVehicles } from '../../hooks/useVehicles';
 import { useTrips } from '../../hooks/useTrips';
+import { useAuth } from '../../hooks/useAuth';
 import { useAlert } from '@/template';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
+  const { isAuthenticated } = useAuth();
   const { activeTrip, activeVehicle, isTracking, startTrip, stopTrip } = useTripTracking();
-  const { vehicles, switchVehicle } = useVehicles();
+  const { vehicles, switchVehicle, refreshVehicles, loading: vehiclesLoading } = useVehicles();
   const { getPendingCount } = useTrips();
   const { showAlert } = useAlert();
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
+
+  // Refresh vehicles when authentication state changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('[DashboardScreen] Auth state changed, refreshing vehicles...');
+      refreshVehicles();
+    }
+  }, [isAuthenticated]);
 
   const handleStartTrip = () => {
     if (!activeVehicle) {
@@ -40,6 +50,16 @@ export default function DashboardScreen() {
   };
 
   const pendingCount = getPendingCount();
+
+  // Show loading state while vehicles are loading
+  if (vehiclesLoading && vehicles.length === 0) {
+    return (
+      <View style={[styles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={styles.loadingText}>Loading your vehicles...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -313,6 +333,16 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.labelSmall,
     color: theme.colors.textSecondary,
     marginTop: theme.spacing.sm,
+    includeFontPadding: false,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: theme.typography.bodyMedium,
+    color: theme.colors.textSecondary,
+    marginTop: theme.spacing.md,
     includeFontPadding: false,
   },
 });
