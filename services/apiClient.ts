@@ -161,6 +161,8 @@ export async function apiRequest<T = any>(
   }
 
   try {
+    console.log('[ApiClient] Making request with headers:', JSON.stringify(headers, null, 2));
+    
     const response = await fetch(url, {
       ...options,
       headers,
@@ -168,9 +170,20 @@ export async function apiRequest<T = any>(
     });
 
     console.log(`[ApiClient] Response status: ${response.status} ${response.statusText}`);
+    console.log('[ApiClient] Response headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
 
-    const result: ApiResponse<T> = await response.json();
-    console.log('[ApiClient] Response data:', JSON.stringify(result).substring(0, 200));
+    const responseText = await response.text();
+    console.log('[ApiClient] Response body (first 500 chars):', responseText.substring(0, 500));
+    
+    let result: ApiResponse<T>;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('[ApiClient] Failed to parse response as JSON:', parseError);
+      throw new ApiError('PARSE_ERROR', `Server returned invalid JSON: ${responseText.substring(0, 100)}`);
+    }
+    
+    console.log('[ApiClient] Parsed response:', JSON.stringify(result).substring(0, 200));
 
     // Handle 401 Unauthorized - token expired
     if (response.status === 401 && accessToken) {
@@ -220,16 +233,27 @@ export async function apiRequest<T = any>(
 
     console.log('[ApiClient] Request successful, returning data');
     return result.data as T;
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof ApiError) {
       throw error;
     }
     
     // Network or other errors
     console.error('[ApiClient] Network error:', error);
+    console.error('[ApiClient] Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    
+    // Build detailed error for debugging
+    let errorMessage = error instanceof Error ? error.message : 'Network request failed';
+    errorMessage += ` (URL: ${url})`;
+    
+    if (error?.cause) errorMessage += ` | Cause: ${error.cause}`;
+    if (error?.errno) errorMessage += ` | Errno: ${error.errno}`;
+    if (error?.code) errorMessage += ` | Code: ${error.code}`;
+    
     throw new ApiError(
       'NETWORK_ERROR',
-      error instanceof Error ? error.message : 'Network request failed'
+      errorMessage,
+      { originalError: error, url, headers }
     );
   }
 }
