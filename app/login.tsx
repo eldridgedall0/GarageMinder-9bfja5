@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, TextInput } from 'react-native';
-import { WebView, WebViewNavigation } from 'react-native-webview';
-import CookieManager from '@react-native-cookies/cookies';
+import { WebView, WebViewNavigation, WebViewMessageEvent } from 'react-native-webview';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -23,34 +22,26 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleNavigationStateChange = async (navState: WebViewNavigation) => {
+  const handleNavigationStateChange = (navState: WebViewNavigation) => {
     setCanGoBack(navState.canGoBack);
-
     console.log('[LoginScreen] URL changed:', navState.url);
 
+    // Detect successful login redirect
     if (navState.url.includes('login_success=1') || navState.url.includes('/app/')) {
-      setIsLoading(true);
-      try {
-        // Use native CookieManager — reads HttpOnly cookies that JS cannot access
-        const cookies = await CookieManager.get('https://yesca.st');
-        const cookieString = Object.entries(cookies)
-          .map(([name, cookie]) => `${name}=${cookie.value}`)
-          .join('; ');
-
-        console.log('[LoginScreen] Cookie keys:', Object.keys(cookies));
-        console.log('[LoginScreen] Has WP cookie:', cookieString.includes('wordpress_logged_in'));
-
-        if (!cookieString || !cookieString.includes('wordpress_logged_in')) {
-          throw new Error('WordPress session cookie not found. Login may have failed.');
-        }
-
-        await loginWithCookies(cookieString);
-        await new Promise(resolve => setTimeout(resolve, 100));
-        router.replace('/(tabs)');
-      } catch (error: any) {
-        showAlert('Login Failed', error.message || 'Failed to complete login. Please try again.');
-        setIsLoading(false);
-      }
+      // WordPress cookies are HttpOnly and cannot be accessed via JavaScript
+      // Redirect user to direct login form instead
+      console.log('[LoginScreen] Login detected, redirecting to direct login');
+      showAlert(
+        'Complete Login',
+        'Please enter your credentials below to complete sign-in.',
+        [
+          {
+            text: 'OK',
+            onPress: () => setShowDirectLogin(true),
+          },
+        ]
+      );
+      setIsLoading(false);
     }
   };
 
@@ -97,7 +88,7 @@ export default function LoginScreen() {
       </View>
 
       {/* Loading Indicator */}
-      {isLoading && (
+      {isLoading && !showDirectLogin && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Loading...</Text>
@@ -121,8 +112,8 @@ export default function LoginScreen() {
       ) : (
         <View style={styles.directLoginForm}>
           <View style={styles.formContainer}>
-            <Text style={styles.formTitle}>Direct Login</Text>
-            <Text style={styles.formSubtitle}>Sign in with your GarageMinder credentials</Text>
+            <Text style={styles.formTitle}>Sign In</Text>
+            <Text style={styles.formSubtitle}>Enter your GarageMinder credentials</Text>
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Email Address</Text>
@@ -163,7 +154,11 @@ export default function LoginScreen() {
               onPress={handleDirectLogin}
               disabled={isLoading}
             >
-              <Text style={styles.loginButtonText}>Sign In</Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.loginButtonText}>Sign In</Text>
+              )}
             </Pressable>
 
             <Pressable
@@ -190,7 +185,7 @@ export default function LoginScreen() {
               style={styles.troubleButton}
               onPress={() => setShowDirectLogin(true)}
             >
-              <Text style={styles.troubleText}>Trouble signing in?</Text>
+              <Text style={styles.troubleText}>Use direct login</Text>
             </Pressable>
           </>
         ) : (
@@ -333,6 +328,8 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
     marginTop: theme.spacing.md,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   loginButtonPressed: {
     opacity: 0.8,
