@@ -128,15 +128,15 @@ export async function apiRequest<T = any>(
   
   // Check if token is expired and refresh if needed
   if (accessToken && await isTokenExpired()) {
-    console.log('[ApiClient] Token expired, refreshing...');
+    console.log('[ApiClient] Token expired, attempting pre-emptive refresh...');
     try {
       await refreshAccessToken();
-      accessToken = await getAccessToken();
-      console.log('[ApiClient] Token refreshed successfully');
+      accessToken = await getAccessToken(); // use new token if refresh worked
+      console.log('[ApiClient] Pre-emptive token refresh successful');
     } catch (error) {
-      // Token refresh failed, proceed without token (will get 401)
-      console.error('[ApiClient] Token refresh failed:', error);
-      accessToken = null;
+      // Pre-emptive refresh failed — keep original token and let the 401 handler retry
+      console.warn('[ApiClient] Pre-emptive refresh failed, proceeding with existing token:', error);
+      // DO NOT set accessToken = null here - the 401 handler below will do a proper retry
     }
   }
 

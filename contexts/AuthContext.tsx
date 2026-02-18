@@ -2,6 +2,7 @@ import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../services/authService';
 import * as authService from '../services/authService';
 import { fetchVehiclesFromAPI, clearVehicleCache } from '../services/vehicleService';
+import { Vehicle } from '../types/trip';
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +12,10 @@ interface AuthContextType {
   loginWithCookies: (cookies: string) => Promise<void>;
   logout: (allDevices?: boolean) => Promise<void>;
   refreshUser: () => Promise<void>;
+  vehicles: Vehicle[];
+  vehiclesLoading: boolean;
+  vehicleError: string | null;
+  reloadVehicles: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +28,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehiclesLoading, setVehiclesLoading] = useState(false);
+  const [vehicleError, setVehicleError] = useState<string | null>(null);
 
   // Check authentication status on mount
   useEffect(() => {
@@ -74,15 +82,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(loggedInUser);
     setIsAuthenticated(true);
     
-    // Fetch user's vehicles from API - MUST complete before returning
+    // Fetch user's vehicles from API and store in context state directly
     console.log('[AuthContext] Fetching vehicles from API...');
+    setVehiclesLoading(true);
+    setVehicleError(null);
     try {
-      const vehicles = await fetchVehiclesFromAPI();
-      console.log(`[AuthContext] Loaded ${vehicles.length} vehicles from API`);
+      const fetchedVehicles = await fetchVehiclesFromAPI();
+      setVehicles(fetchedVehicles); // Set directly in context, no cache read needed
+      console.log(`[AuthContext] Loaded ${fetchedVehicles.length} vehicles from API`);
     } catch (error: any) {
       console.error('[AuthContext] Failed to fetch vehicles:', error);
-      // Throw with descriptive error message for user
+      setVehicleError(error?.message || 'Failed to load vehicles');
       throw new Error(error?.message || 'Failed to load your vehicles. Please check your internet connection and try again.');
+    } finally {
+      setVehiclesLoading(false);
     }
   };
 
@@ -96,14 +109,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(loggedInUser);
     setIsAuthenticated(true);
     
-    // Fetch user's vehicles from API - MUST complete before returning
+    // Fetch user's vehicles from API and store in context state directly
     console.log('[AuthContext] Fetching vehicles from API...');
+    setVehiclesLoading(true);
+    setVehicleError(null);
     try {
-      const vehicles = await fetchVehiclesFromAPI();
-      console.log(`[AuthContext] Loaded ${vehicles.length} vehicles from API`);
-    } catch (error) {
+      const fetchedVehicles = await fetchVehiclesFromAPI();
+      setVehicles(fetchedVehicles); // Set directly in context, no cache read needed
+      console.log(`[AuthContext] Loaded ${fetchedVehicles.length} vehicles from API`);
+    } catch (error: any) {
       console.error('[AuthContext] Failed to fetch vehicles:', error);
-      throw new Error('Failed to load your vehicles. Please try again.');
+      setVehicleError(error?.message || 'Failed to load vehicles');
+      throw new Error(error?.message || 'Failed to load your vehicles. Please try again.');
+    } finally {
+      setVehiclesLoading(false);
     }
   };
 
@@ -115,6 +134,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     setUser(null);
     setIsAuthenticated(false);
+    setVehicles([]);
+    setVehicleError(null);
   };
 
   const refreshUser = async () => {
@@ -126,6 +147,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const reloadVehicles = async () => {
+    setVehiclesLoading(true);
+    setVehicleError(null);
+    try {
+      const freshVehicles = await fetchVehiclesFromAPI();
+      setVehicles(freshVehicles);
+      console.log(`[AuthContext] Reloaded ${freshVehicles.length} vehicles from API`);
+    } catch (error: any) {
+      console.error('[AuthContext] Failed to reload vehicles:', error);
+      setVehicleError(error?.message || 'Failed to reload vehicles');
+      throw error;
+    } finally {
+      setVehiclesLoading(false);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isLoading,
@@ -134,6 +171,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     loginWithCookies,
     logout,
     refreshUser,
+    vehicles,
+    vehiclesLoading,
+    vehicleError,
+    reloadVehicles,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

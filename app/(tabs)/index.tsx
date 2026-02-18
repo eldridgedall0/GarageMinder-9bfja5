@@ -7,34 +7,42 @@ import { theme } from '../../constants/theme';
 import { Button } from '../../components/ui/Button';
 import { ActiveTripCard } from '../../components/trip/ActiveTripCard';
 import { useTripTracking } from '../../hooks/useTripTracking';
-import { useVehicles } from '../../hooks/useVehicles';
 import { useTrips } from '../../hooks/useTrips';
 import { useAuth } from '../../hooks/useAuth';
 import { useAlert } from '@/template';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, vehicles, vehiclesLoading, vehicleError, reloadVehicles } = useAuth();
   const { activeTrip, activeVehicle, isTracking, startTrip, stopTrip } = useTripTracking();
-  const { vehicles, switchVehicle, refreshVehicles, fetchFromAPI, loading: vehiclesLoading } = useVehicles();
   const { getPendingCount } = useTrips();
   const { showAlert } = useAlert();
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
 
-  // Reload vehicles from cache when authentication state changes
-  // (AuthContext already fetched from API during login)
+  // On first load or when vehicles change, set active vehicle from AsyncStorage
   useEffect(() => {
-    if (isAuthenticated) {
-      console.log('[DashboardScreen] Auth state changed, reloading vehicles from cache...');
-      refreshVehicles(); // This loads from cache, which was populated during login
-    }
-  }, [isAuthenticated, refreshVehicles]);
+    (async () => {
+      const { getActiveVehicle, setActiveVehicle } = await import('../../services/vehicleService');
+      const active = await getActiveVehicle();
+      if (active) {
+        setActiveVehicleId(active.id);
+      } else if (vehicles.length > 0) {
+        // Set first vehicle as active if none selected
+        await setActiveVehicle(vehicles[0].id);
+        setActiveVehicleId(vehicles[0].id);
+      }
+    })();
+  }, [vehicles]);
+
+  // Get the active vehicle from the list
+  const currentActiveVehicle = vehicles.find(v => v.id === activeVehicleId) || vehicles[0] || null;
 
   const handleRetry = async () => {
     setRetrying(true);
     try {
-      await fetchFromAPI();
+      await reloadVehicles();
       showAlert('Success', 'Vehicles loaded successfully');
     } catch (error: any) {
       console.error('[DashboardScreen] Retry failed:', error);
@@ -48,7 +56,7 @@ export default function DashboardScreen() {
   };
 
   const handleStartTrip = () => {
-    if (!activeVehicle) {
+    if (!currentActiveVehicle) {
       showAlert('No Vehicle Selected', 'Please select a vehicle first');
       return;
     }
@@ -62,8 +70,10 @@ export default function DashboardScreen() {
     ]);
   };
 
-  const handleVehicleSelect = (vehicleId: string) => {
-    switchVehicle(vehicleId);
+  const handleVehicleSelect = async (vehicleId: string) => {
+    const { setActiveVehicle } = await import('../../services/vehicleService');
+    await setActiveVehicle(vehicleId);
+    setActiveVehicleId(vehicleId);
     setShowVehicleSelector(false);
   };
 
@@ -142,13 +152,13 @@ export default function DashboardScreen() {
           <View style={styles.vehicleDetails}>
             <Text style={styles.vehicleLabel}>Current Vehicle</Text>
             <Text style={styles.vehicleName}>
-              {activeVehicle 
-                ? `${activeVehicle.year} ${activeVehicle.make} ${activeVehicle.model}`
+              {currentActiveVehicle 
+                ? `${currentActiveVehicle.year} ${currentActiveVehicle.make} ${currentActiveVehicle.model}`
                 : 'No Vehicle Selected'}
             </Text>
-            {activeVehicle && (
+            {currentActiveVehicle && (
               <Text style={styles.vehicleOdometer}>
-                Odometer: {activeVehicle.currentOdometer.toLocaleString()} mi
+                Odometer: {currentActiveVehicle.currentOdometer.toLocaleString()} mi
               </Text>
             )}
           </View>
@@ -167,7 +177,7 @@ export default function DashboardScreen() {
                 key={vehicle.id}
                 style={[
                   styles.vehicleItem,
-                  activeVehicle?.id === vehicle.id && styles.vehicleItemActive,
+                  activeVehicleId === vehicle.id && styles.vehicleItemActive,
                 ]}
                 onPress={() => handleVehicleSelect(vehicle.id)}
               >
@@ -179,7 +189,7 @@ export default function DashboardScreen() {
                     {vehicle.currentOdometer.toLocaleString()} mi
                   </Text>
                 </View>
-                {activeVehicle?.id === vehicle.id && (
+                {activeVehicleId === vehicle.id && (
                   <MaterialIcons name="check-circle" size={20} color={theme.colors.primary} />
                 )}
               </Pressable>
