@@ -121,16 +121,21 @@ export async function apiRequest<T = any>(
 ): Promise<T> {
   const url = `${API_CONFIG.BASE_URL}${endpoint}`;
   
+  console.log(`[ApiClient] Request: ${options.method || 'GET'} ${url}`);
+  
   // Get access token
   let accessToken = await getAccessToken();
   
   // Check if token is expired and refresh if needed
   if (accessToken && await isTokenExpired()) {
+    console.log('[ApiClient] Token expired, refreshing...');
     try {
       await refreshAccessToken();
       accessToken = await getAccessToken();
+      console.log('[ApiClient] Token refreshed successfully');
     } catch (error) {
       // Token refresh failed, proceed without token (will get 401)
+      console.error('[ApiClient] Token refresh failed:', error);
       accessToken = null;
     }
   }
@@ -144,6 +149,9 @@ export async function apiRequest<T = any>(
   // Add authorization if token exists
   if (accessToken) {
     headers['Authorization'] = `Bearer ${accessToken}`;
+    console.log('[ApiClient] Using access token:', accessToken.substring(0, 20) + '...');
+  } else {
+    console.warn('[ApiClient] No access token available');
   }
 
   // Add device ID if available
@@ -159,10 +167,14 @@ export async function apiRequest<T = any>(
       signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
     });
 
+    console.log(`[ApiClient] Response status: ${response.status} ${response.statusText}`);
+
     const result: ApiResponse<T> = await response.json();
+    console.log('[ApiClient] Response data:', JSON.stringify(result).substring(0, 200));
 
     // Handle 401 Unauthorized - token expired
     if (response.status === 401 && accessToken) {
+      console.log('[ApiClient] Got 401, attempting token refresh...');
       // Try to refresh token once
       try {
         await refreshAccessToken();
@@ -171,10 +183,14 @@ export async function apiRequest<T = any>(
         const newToken = await getAccessToken();
         if (newToken) {
           headers['Authorization'] = `Bearer ${newToken}`;
+          console.log('[ApiClient] Retrying request with new token...');
           const retryResponse = await fetch(url, { ...options, headers });
           const retryResult: ApiResponse<T> = await retryResponse.json();
           
+          console.log(`[ApiClient] Retry response status: ${retryResponse.status}`);
+          
           if (!retryResult.success) {
+            console.error('[ApiClient] Retry request failed:', retryResult.error);
             throw new ApiError(
               retryResult.error?.code || 'UNKNOWN_ERROR',
               retryResult.error?.message || 'Request failed',
@@ -186,6 +202,7 @@ export async function apiRequest<T = any>(
         }
       } catch (refreshError) {
         // Refresh failed, clear tokens
+        console.error('[ApiClient] Token refresh failed, clearing tokens');
         await clearTokens();
         throw new ApiError('TOKEN_EXPIRED', 'Session expired. Please log in again.');
       }
@@ -193,6 +210,7 @@ export async function apiRequest<T = any>(
 
     // Handle other errors
     if (!result.success) {
+      console.error('[ApiClient] API error:', result.error);
       throw new ApiError(
         result.error?.code || 'UNKNOWN_ERROR',
         result.error?.message || 'Request failed',
@@ -200,6 +218,7 @@ export async function apiRequest<T = any>(
       );
     }
 
+    console.log('[ApiClient] Request successful, returning data');
     return result.data as T;
   } catch (error) {
     if (error instanceof ApiError) {
@@ -207,6 +226,7 @@ export async function apiRequest<T = any>(
     }
     
     // Network or other errors
+    console.error('[ApiClient] Network error:', error);
     throw new ApiError(
       'NETWORK_ERROR',
       error instanceof Error ? error.message : 'Network request failed'
