@@ -1,73 +1,148 @@
 # GarageMinder Mobile App - Setup Instructions
 
-## Required Package Installation
+## Authentication Flow
 
-To complete the WebView login flow, you need to install the native cookie manager package.
+The app uses **direct login** with the GarageMinder API - no WebView or native dependencies required.
 
-### Install the package:
+### How It Works
 
-```bash
-npm install @react-native-cookies/cookies@^6.2.1
-```
+1. **User opens the app** → Sees login form
+2. **User enters credentials** → Email/username and password
+3. **App calls API** → `POST /auth/login` with credentials
+4. **Server returns JWT tokens** → Access token (30 min) + refresh token (30 days)
+5. **App fetches vehicles** → `GET /vehicles` to load user's vehicles
+6. **Navigate to home** → User sees their vehicles and trip history
 
-### After installation:
+### API Endpoints Used
 
-1. **Stop your development server** (if running)
-2. **Rebuild the app**:
-   - For Expo Go: Not supported (requires custom development build)
-   - For development build: `npx expo prebuild` then rebuild
-   - For iOS: `cd ios && pod install && cd ..` then rebuild
-   - For Android: Just rebuild the app
+- **POST** `/auth/login` - Authenticate with username/password
+- **POST** `/auth/refresh` - Refresh access token
+- **POST** `/auth/logout` - Revoke refresh token
+- **GET** `/auth/verify` - Verify current token
+- **GET** `/vehicles` - Fetch user's vehicles
+- **POST** `/sync/register-device` - Register device for sync tracking
 
-3. **Restart the development server**: `npx expo start`
+## No Additional Setup Required
 
-## How the Login Flow Works
+✅ No native dependencies  
+✅ No package installation needed  
+✅ Works on all platforms (iOS, Android, Web)  
+✅ Simple and reliable
 
-1. User opens the app → Sees WebView with GarageMinder login page
-2. User enters credentials and logs in on the web page
-3. On successful login, page redirects to URL with `login_success=1`
-4. App detects redirect, extracts WordPress session cookies using native API
-5. App calls `/auth/token-exchange` API endpoint with cookies
-6. Server returns JWT access + refresh tokens
-7. App stores tokens securely and fetches user's vehicles from API
-8. App navigates to home screen with loaded vehicle data
+Just run the app and sign in!
 
-## API Endpoints Used
+## Security Features
 
-- **POST** `/auth/token-exchange` - Exchange WordPress cookies for JWT tokens
-- **GET** `/vehicles` - Fetch user's vehicles from server
-- **POST** `/sync/register-device` - Register device for push notifications
+- **Secure token storage** using `expo-secure-store`
+- **Automatic token refresh** when access token expires
+- **Device registration** for push notifications and sync tracking
+- **Encrypted local storage** for user data and tokens
+
+## How to Use
+
+### First Time
+1. Open the app
+2. Enter your GarageMinder email/username
+3. Enter your password
+4. Tap "Sign In"
+5. Wait for vehicles to load
+6. Start tracking trips!
+
+### Subsequent Opens
+- If token is valid → Auto-login to home screen
+- If token expired → Show login screen
 
 ## Troubleshooting
 
-### "Cookie manager not available" error:
-- Run: `npm install @react-native-cookies/cookies@^6.2.1`
-- Rebuild the app completely
+### "Invalid email or password" error
+- Check your credentials
+- Make sure you're using the correct email/username
+- Password is case-sensitive
 
-### "WordPress session cookie not found" error:
-- The login on the web page may have failed
-- Check that the login URL is correct: `https://yesca.st/gm/login/?mobile=1`
-- Verify the redirect includes `login_success=1` parameter
+### "Network error" message
+- Check your internet connection
+- Verify API is accessible: https://yesca.st/gm/api/v1
+- Check firewall/VPN settings
 
-### Vehicles not loading after login:
+### Vehicles not loading
 - Check network logs in console
-- Verify API endpoint `/vehicles` is working
-- Check that user has vehicles associated with their account
+- Verify user has vehicles in their account
+- Try logging out and back in
+
+### Token expired
+- App automatically refreshes tokens
+- If refresh fails, you'll be logged out
+- Just sign in again
 
 ## Console Logs to Monitor
 
-When testing login, watch for these console logs:
+Watch for these logs during login:
 
 ```
-[LoginScreen] URL changed: https://...
-[LoginScreen] Login success detected, extracting cookies...
-[LoginScreen] Cookie keys: [...]
-[LoginScreen] Has WP cookie: true
-[LoginScreen] Exchanging cookie for JWT tokens...
-[AuthService] Token exchange URL: https://yesca.st/gm/api/v1/auth/token-exchange
-[AuthService] Exchange status: 200
+[LoginScreen] Attempting login...
+[AuthService] Login endpoint: https://yesca.st/gm/api/v1/auth/login
+[AuthService] Login response status: 200
 [AuthContext] Fetching vehicles from API...
-[LoginScreen] Login complete, navigating to home...
+[LoginScreen] Login successful, navigating to home...
 ```
 
-Any errors will also appear in the console with detailed messages.
+Any errors will show detailed messages in the console.
+
+## API Response Format
+
+All API responses follow this structure:
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "error": null,
+  "meta": {
+    "api_version": "1.0.0",
+    "timestamp": 1739404800
+  }
+}
+```
+
+Error responses:
+
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "INVALID_CREDENTIALS",
+    "message": "Invalid username or password",
+    "details": null
+  },
+  "meta": { ... }
+}
+```
+
+## Features
+
+✅ JWT-based authentication  
+✅ Automatic token refresh  
+✅ Secure token storage  
+✅ Vehicle sync from server  
+✅ Device registration  
+✅ Multi-device support  
+✅ Session management  
+
+## Next Steps After Login
+
+Once logged in, the app automatically:
+1. Stores JWT tokens securely
+2. Fetches your vehicles from the server
+3. Caches vehicles locally
+4. Sets first vehicle as active
+5. Registers device for sync
+6. Navigates to home screen
+
+You can then:
+- View your vehicles
+- Start tracking trips
+- Manually adjust odometer readings
+- Sync trip data to server
+- Export trip history
+- Manage account settings

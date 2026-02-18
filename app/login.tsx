@@ -1,139 +1,208 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
-import { WebView, WebViewNavigation } from 'react-native-webview';
+import React, { useState } from 'react';
+import { View, Text, TextInput, StyleSheet, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
-import { API_CONFIG } from '../constants/config';
 import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '@/template';
-
-// Import cookie manager
-let CookieManager: any;
-try {
-  CookieManager = require('@react-native-cookies/cookies').default;
-} catch (error) {
-  console.warn('Cookie manager not available. Please install @react-native-cookies/cookies');
-}
 
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { loginWithCookies } = useAuth();
+  const { login } = useAuth();
   const { showAlert } = useAlert();
-  const webViewRef = useRef<WebView>(null);
   
-  const [isLoading, setIsLoading] = useState(true);
-  const [canGoBack, setCanGoBack] = useState(false);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleNavigationStateChange = async (navState: WebViewNavigation) => {
-    setCanGoBack(navState.canGoBack);
-    console.log('[LoginScreen] URL changed:', navState.url);
-
-    // Detect successful login redirect
-    if (navState.url.includes('login_success=1') || navState.url.includes('/app/')) {
-      console.log('[LoginScreen] Login success detected, extracting cookies...');
-      setIsAuthenticating(true);
-      
-      try {
-        // Check if cookie manager is available
-        if (!CookieManager) {
-          throw new Error(
-            'Cookie manager not installed. Please run: npm install @react-native-cookies/cookies'
-          );
-        }
-
-        // Extract cookies using native cookie manager
-        const cookies = await CookieManager.get('https://yesca.st');
-        console.log('[LoginScreen] Cookie keys:', Object.keys(cookies));
-        
-        // Build cookie string
-        const cookieString = Object.entries(cookies)
-          .map(([name, cookie]: [string, any]) => `${name}=${cookie.value}`)
-          .join('; ');
-        
-        console.log('[LoginScreen] Has WP cookie:', cookieString.includes('wordpress_logged_in'));
-        console.log('[LoginScreen] Cookie preview:', cookieString.substring(0, 80) + '...');
-
-        if (!cookieString || !cookieString.includes('wordpress_logged_in')) {
-          throw new Error('WordPress session cookie not found. Login may have failed.');
-        }
-
-        // Exchange cookie for JWT tokens and fetch user data + vehicles
-        console.log('[LoginScreen] Exchanging cookie for JWT tokens...');
-        await loginWithCookies(cookieString);
-        
-        // Small delay to ensure state updates
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Navigate to home screen
-        console.log('[LoginScreen] Login complete, navigating to home...');
-        router.replace('/(tabs)');
-        
-      } catch (error: any) {
-        console.error('[LoginScreen] Login error:', error);
-        setIsAuthenticating(false);
-        showAlert('Login Failed', error.message || 'Failed to complete login. Please try again.');
-      }
+  const handleLogin = async () => {
+    // Validate inputs
+    if (!username.trim()) {
+      showAlert('Required Field', 'Please enter your email or username');
+      return;
     }
-  };
+    
+    if (!password) {
+      showAlert('Required Field', 'Please enter your password');
+      return;
+    }
 
-  const handleBack = () => {
-    if (canGoBack && webViewRef.current) {
-      webViewRef.current.goBack();
-    } else {
-      router.back();
+    setIsLoading(true);
+    
+    try {
+      console.log('[LoginScreen] Attempting login...');
+      await login(username.trim(), password);
+      
+      console.log('[LoginScreen] Login successful, navigating to home...');
+      
+      // Small delay to ensure state updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Navigate to home screen
+      router.replace('/(tabs)');
+      
+    } catch (error: any) {
+      console.error('[LoginScreen] Login error:', error);
+      
+      let errorMessage = 'Unable to sign in. Please check your credentials.';
+      
+      if (error.code === 'INVALID_CREDENTIALS') {
+        errorMessage = 'Invalid email or password';
+      } else if (error.code === 'NETWORK_ERROR') {
+        errorMessage = 'Network error. Please check your connection.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      showAlert('Sign In Failed', errorMessage);
+      setIsLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable 
-          style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
-          onPress={handleBack}
-          disabled={isAuthenticating}
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardView}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
         >
-          <MaterialIcons name="arrow-back" size={24} color={theme.colors.text} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Sign In</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <Pressable 
+              style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
+              onPress={() => router.back()}
+              disabled={isLoading}
+            >
+              <MaterialIcons name="arrow-back" size={24} color={theme.colors.text} />
+            </Pressable>
+          </View>
 
-      {/* Loading Indicator */}
-      {(isLoading || isAuthenticating) && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>
-            {isAuthenticating ? 'Signing in...' : 'Loading...'}
-          </Text>
-        </View>
-      )}
+          {/* Logo & Title */}
+          <View style={styles.logoContainer}>
+            <View style={styles.logoCircle}>
+              <MaterialIcons name="directions-car" size={48} color={theme.colors.primary} />
+            </View>
+            <Text style={styles.title}>GarageMinder</Text>
+            <Text style={styles.subtitle}>Track your vehicle mileage</Text>
+          </View>
 
-      {/* WebView */}
-      <WebView
-        ref={webViewRef}
-        source={{ uri: API_CONFIG.LOGIN_URL }}
-        style={styles.webview}
-        onNavigationStateChange={handleNavigationStateChange}
-        onLoadStart={() => setIsLoading(true)}
-        onLoadEnd={() => setIsLoading(false)}
-        sharedCookiesEnabled={true}
-        thirdPartyCookiesEnabled={true}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-      />
+          {/* Login Form */}
+          <View style={styles.formContainer}>
+            {/* Email/Username Input */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Email or Username</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons 
+                  name="person-outline" 
+                  size={20} 
+                  color={theme.colors.textSubtle}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={styles.input}
+                  value={username}
+                  onChangeText={setUsername}
+                  placeholder="Enter your email or username"
+                  placeholderTextColor={theme.colors.textSubtle}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="email-address"
+                  editable={!isLoading}
+                  returnKeyType="next"
+                  onSubmitEditing={() => {}} // Focus password input
+                />
+              </View>
+            </View>
 
-      {/* Help Text */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        <MaterialIcons name="info-outline" size={16} color={theme.colors.textSubtle} />
-        <Text style={styles.footerText}>
-          Sign in with your GarageMinder account
-        </Text>
-      </View>
+            {/* Password Input */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.inputWrapper}>
+                <MaterialIcons 
+                  name="lock-outline" 
+                  size={20} 
+                  color={theme.colors.textSubtle}
+                  style={styles.inputIcon}
+                />
+                <TextInput
+                  style={[styles.input, styles.passwordInput]}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter your password"
+                  placeholderTextColor={theme.colors.textSubtle}
+                  secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!isLoading}
+                  returnKeyType="go"
+                  onSubmitEditing={handleLogin}
+                />
+                <Pressable 
+                  style={styles.eyeButton}
+                  onPress={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
+                >
+                  <MaterialIcons 
+                    name={showPassword ? "visibility" : "visibility-off"} 
+                    size={20} 
+                    color={theme.colors.textSubtle}
+                  />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Login Button */}
+            <Pressable
+              style={({ pressed }) => [
+                styles.loginButton,
+                pressed && styles.loginButtonPressed,
+                isLoading && styles.loginButtonDisabled,
+              ]}
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Text style={styles.loginButtonText}>Sign In</Text>
+                  <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
+                </>
+              )}
+            </Pressable>
+
+            {/* Help Text */}
+            <View style={styles.helpContainer}>
+              <MaterialIcons name="info-outline" size={16} color={theme.colors.textSubtle} />
+              <Text style={styles.helpText}>
+                Use your GarageMinder account credentials
+              </Text>
+            </View>
+          </View>
+
+          {/* Footer */}
+          <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+            <Text style={styles.footerText}>
+              Don't have an account?
+            </Text>
+            <Pressable 
+              onPress={() => {
+                // TODO: Navigate to signup or open web signup
+                showAlert('Create Account', 'Please visit our website to create an account.');
+              }}
+              disabled={isLoading}
+            >
+              <Text style={styles.footerLink}>Create one</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -143,50 +212,122 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   backButton: {
     padding: theme.spacing.xs,
     borderRadius: theme.borderRadius.sm,
+    alignSelf: 'flex-start',
   },
   backButtonPressed: {
     opacity: 0.7,
   },
-  headerTitle: {
-    fontSize: theme.typography.bodyLarge,
-    fontWeight: theme.typography.weightSemiBold,
+  logoContainer: {
+    alignItems: 'center',
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.xxl,
+  },
+  logoCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  title: {
+    fontSize: theme.typography.h1,
+    fontWeight: theme.typography.weightBold,
     color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
     includeFontPadding: false,
   },
-  headerSpacer: {
-    width: 40,
-  },
-  webview: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: theme.colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
-  loadingText: {
+  subtitle: {
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.textSecondary,
+    includeFontPadding: false,
+  },
+  formContainer: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl,
+  },
+  inputContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  inputLabel: {
+    fontSize: theme.typography.bodyMedium,
+    fontWeight: theme.typography.weightMedium,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+    includeFontPadding: false,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  inputIcon: {
+    marginLeft: theme.spacing.md,
+  },
+  input: {
+    flex: 1,
+    fontSize: theme.typography.bodyMedium,
+    color: theme.colors.text,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    includeFontPadding: false,
+  },
+  passwordInput: {
+    paddingRight: theme.spacing.xs,
+  },
+  eyeButton: {
+    padding: theme.spacing.md,
+  },
+  loginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.primary,
+    paddingVertical: theme.spacing.md + 2,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.md,
     marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  loginButtonPressed: {
+    opacity: 0.9,
+  },
+  loginButtonDisabled: {
+    opacity: 0.6,
+  },
+  loginButtonText: {
+    fontSize: theme.typography.bodyLarge,
+    fontWeight: theme.typography.weightSemiBold,
+    color: '#FFFFFF',
+    includeFontPadding: false,
+  },
+  helpContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: theme.spacing.md,
+    gap: theme.spacing.xs,
+  },
+  helpText: {
+    fontSize: theme.typography.labelSmall,
+    color: theme.colors.textSubtle,
     includeFontPadding: false,
   },
   footer: {
@@ -194,14 +335,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.md,
-    gap: theme.spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    paddingTop: theme.spacing.lg,
+    gap: theme.spacing.xs,
+    marginTop: 'auto',
   },
   footerText: {
-    fontSize: theme.typography.labelSmall,
-    color: theme.colors.textSubtle,
+    fontSize: theme.typography.bodySmall,
+    color: theme.colors.textSecondary,
+    includeFontPadding: false,
+  },
+  footerLink: {
+    fontSize: theme.typography.bodySmall,
+    color: theme.colors.primary,
+    fontWeight: theme.typography.weightSemiBold,
     includeFontPadding: false,
   },
 });
