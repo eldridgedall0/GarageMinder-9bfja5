@@ -109,10 +109,19 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
   const stopTrip = async () => {
     if (!activeTrip) return;
     console.log('[useTripTracking] Stopping trip:', activeTrip.id);
-    await stopGpsTracking();
-    const finalDistance = metersToMiles(gpsDistance);
-    const duration = Date.now() - activeTrip.startTime.getTime();
-    await finalizeTrip(finalDistance, duration);
+    
+    try {
+      await stopGpsTracking();
+      const finalDistance = metersToMiles(gpsDistance);
+      const duration = Date.now() - activeTrip.startTime.getTime();
+      await finalizeTrip(finalDistance, duration);
+    } catch (error) {
+      console.error('[useTripTracking] Error stopping trip:', error);
+      // Still finalize even if GPS stop fails
+      const finalDistance = metersToMiles(gpsDistance);
+      const duration = Date.now() - activeTrip.startTime.getTime();
+      await finalizeTrip(finalDistance, duration);
+    }
   };
 
   const finalizeTrip = async (distance: number, duration: number) => {
@@ -140,8 +149,10 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
       await updateVehicleOdometer(vehicle.id, endOdometer);
     }
 
+    // Force reset state to ensure UI updates
     setActiveTripState(null);
     setIsTracking(false);
+    
     console.log('[useTripTracking] Trip finalized:', completed.id, distance.toFixed(2), 'miles');
 
     const shouldAutoSync = await canAutoSync();

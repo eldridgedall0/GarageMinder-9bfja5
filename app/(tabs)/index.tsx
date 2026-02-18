@@ -10,7 +10,7 @@ import { useTripTracking } from '../../hooks/useTripTracking';
 import { useTrips } from '../../hooks/useTrips';
 import { useAuth } from '../../hooks/useAuth';
 import { useAlert } from '@/template';
-import { getAutoStartSettings, getAutoStartState } from '../../services/bluetoothService';
+import { getAutoStartSettings, getAutoStartState, getBluetoothState } from '../../services/bluetoothService';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -25,17 +25,45 @@ export default function DashboardScreen() {
   const [isStartingTrip, setIsStartingTrip] = useState(false);
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
   const [autoStartPhase, setAutoStartPhase] = useState<string>('idle');
+  const [bluetoothState, setBluetoothState] = useState<'on' | 'off' | 'unavailable'>('unavailable');
+  const [checkingBluetooth, setCheckingBluetooth] = useState(false);
 
-  // Check AutoStart status
+  // Check AutoStart status and Bluetooth state
   useEffect(() => {
     const checkAutoStart = async () => {
       const settings = await getAutoStartSettings();
       const state = await getAutoStartState();
+      const btState = await getBluetoothState();
       setAutoStartEnabled(settings.enabled);
       setAutoStartPhase(state.phase);
+      setBluetoothState(btState);
     };
     checkAutoStart();
+    
+    // Refresh every 10 seconds
+    const interval = setInterval(checkAutoStart, 10000);
+    return () => clearInterval(interval);
   }, [isAuthenticated]);
+
+  const handleCheckBluetoothStatus = async () => {
+    setCheckingBluetooth(true);
+    try {
+      const btState = await getBluetoothState();
+      setBluetoothState(btState);
+      
+      if (btState === 'on') {
+        showAlert('Bluetooth Status', 'Bluetooth is turned ON and ready');
+      } else if (btState === 'off') {
+        showAlert('Bluetooth Status', 'Bluetooth is turned OFF. Turn it on to use AutoStart');
+      } else {
+        showAlert('Bluetooth Status', 'Bluetooth is unavailable on this device');
+      }
+    } catch (error) {
+      showAlert('Error', 'Failed to check Bluetooth status');
+    } finally {
+      setCheckingBluetooth(false);
+    }
+  };
 
   // On first load or when vehicles change, set active vehicle from AsyncStorage
   useEffect(() => {
@@ -169,18 +197,31 @@ export default function DashboardScreen() {
           </View>
         )}
         {autoStartEnabled && !isTracking && (
-          <View style={[styles.pendingBadge, { backgroundColor: `${theme.colors.primary}15` }]}>
+          <Pressable 
+            style={[styles.pendingBadge, { backgroundColor: `${theme.colors.primary}15` }]}
+            onPress={handleCheckBluetoothStatus}
+          >
             <MaterialIcons
-              name="bluetooth"
+              name={bluetoothState === 'on' ? 'bluetooth-connected' : bluetoothState === 'off' ? 'bluetooth-disabled' : 'bluetooth'}
               size={16}
-              color={autoStartPhase === 'monitoring' ? theme.colors.primary : theme.colors.textSubtle}
+              color={
+                bluetoothState === 'off' ? theme.colors.error :
+                autoStartPhase === 'monitoring' ? theme.colors.primary : 
+                bluetoothState === 'on' ? theme.colors.success : theme.colors.textSubtle
+              }
             />
             <Text style={[styles.pendingText, {
-              color: autoStartPhase === 'monitoring' ? theme.colors.primary : theme.colors.textSubtle
+              color: 
+                bluetoothState === 'off' ? theme.colors.error :
+                autoStartPhase === 'monitoring' ? theme.colors.primary : 
+                bluetoothState === 'on' ? theme.colors.success : theme.colors.textSubtle
             }]}>
-              {autoStartPhase === 'monitoring' ? 'Monitoring' : 'AutoStart On'}
+              {checkingBluetooth ? 'Checking...' :
+               bluetoothState === 'off' ? 'BT Off' :
+               autoStartPhase === 'monitoring' ? 'Monitoring' : 
+               bluetoothState === 'on' ? 'AutoStart Ready' : 'AutoStart On'}
             </Text>
-          </View>
+          </Pressable>
         )}
       </View>
 

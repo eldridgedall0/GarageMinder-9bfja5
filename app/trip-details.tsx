@@ -245,7 +245,7 @@ export default function TripDetailsScreen() {
               textAlignVertical="top"
             />
           ) : (
-            <Text style={styles.notesText}>
+            <Text style={[styles.notesText, { fontStyle: trip.notes ? 'normal' : 'italic' }]}>
               {trip.notes || 'No notes'}
             </Text>
           )}
@@ -437,8 +437,6 @@ const styles = StyleSheet.create({
   notesText: {
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.textSecondary,
-    fontStyle: trip => trip ? 'normal' : 'italic',
-    includeFontPadding: false,
   },
   actions: {
     gap: theme.spacing.md,

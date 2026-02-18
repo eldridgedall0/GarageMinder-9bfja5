@@ -56,6 +56,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="vehicles"
+        options={{
+          title: 'Vehicles',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="directions-car" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="export"
         options={{
           title: 'Export',
