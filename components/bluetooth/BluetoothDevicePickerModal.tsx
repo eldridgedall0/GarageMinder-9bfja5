@@ -46,21 +46,19 @@ export function BluetoothDevicePickerModal({
     setIsScanning(true);
     setScanProgress(0);
 
-    // Progress bar animation
     const progressInterval = setInterval(() => {
-      setScanProgress(prev => Math.min(prev + 1.25, 100)); // 8s / 80 ticks ≈ 100%
+      setScanProgress(prev => Math.min(prev + 1.25, 100));
     }, 100);
 
     try {
       await scanForBluetoothDevices((device) => {
         setScannedDevices(prev => {
           if (prev.find(d => d.id === device.id)) return prev;
-          // Sort by signal strength
           return [...prev, device].sort((a, b) => b.rssi - a.rssi);
         });
-      }, 8000);
+      }, 8);
     } catch (error: any) {
-      setScanError(error.message);
+      setScanError(error?.message || 'Bluetooth scan failed. Make sure Bluetooth is on and try again.');
     } finally {
       clearInterval(progressInterval);
       setScanProgress(100);
@@ -69,7 +67,7 @@ export function BluetoothDevicePickerModal({
   }, []);
 
   const handleClose = () => {
-    stopBluetoothScan();
+    stopBluetoothScan(); // fire and forget
     setIsScanning(false);
     setScannedDevices([]);
     setScanError(null);

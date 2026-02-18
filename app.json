@@ -74,11 +74,11 @@
         }
       ],
       [
-        "react-native-ble-plx",
+        "react-native-ble-manager",
         {
-          "isBackgroundEnabled": true,
-          "modes": ["peripheral", "central"],
-          "bluetoothAlwaysPermission": "Allow GarageMinder to use Bluetooth to automatically detect when you're in your car and start trip tracking."
+          "isBackgroundEnabled": false,
+          "neverForLocation": false,
+          "showAlert": false
         }
       ]
     ],

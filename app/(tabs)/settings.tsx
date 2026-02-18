@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Switch, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Switch, Pressable, TextInput, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
@@ -21,6 +21,14 @@ import {
 } from '../../services/biometricService';
 import { useAlert } from '@/template';
 import { useAuth } from '../../hooks/useAuth';
+import {
+  checkAllPermissions,
+  requestPermission,
+  openAppSettings,
+  getPermissionStatusLabel,
+  getPermissionStatusColor,
+  type AppPermission,
+} from '../../services/permissionsService';
 import { BluetoothDevicePickerModal } from '../../components/bluetooth/BluetoothDevicePickerModal';
 import { VehicleAssignBottomSheet } from '../../components/bluetooth/VehicleAssignBottomSheet';
 import {
@@ -52,9 +60,22 @@ export default function SettingsScreen() {
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [pendingDevice, setPendingDevice] = useState<{ id: string; name: string } | null>(null);
   const [showVehicleAssign, setShowVehicleAssign] = useState(false);
+  const [permissions, setPermissions] = useState<AppPermission[]>([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
 
   useEffect(() => {
     loadSettings();
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        // Re-check permissions when user returns from device settings
+        const perms = await checkAllPermissions();
+        setPermissions(perms);
+      }
+    });
+    return () => subscription.remove();
   }, []);
 
   const loadSettings = async () => {
@@ -64,6 +85,7 @@ export default function SettingsScreen() {
     const bioEnabled = await isBiometricEnabled();
     const autoStart = await getAutoStartSettings();
     const mappings = await getDeviceMappings();
+    const perms = await checkAllPermissions();
 
     setSubscription(level);
     setSyncSettings(settings);
@@ -71,6 +93,7 @@ export default function SettingsScreen() {
     setBiometricEnabled(bioEnabled);
     setAutoStartSettings(autoStart);
     setDeviceMappings(mappings);
+    setPermissions(perms);
   };
 
   const handleSubscriptionToggle = async () => {
@@ -184,7 +207,48 @@ export default function SettingsScreen() {
     );
   };
 
+  const handlePermissionAction = async (permission: AppPermission) => {
+    if (permission.status === 'granted') return; // Nothing to do
 
+    if (permission.requiresNativeSettings || permission.status === 'denied') {
+      // Can't re-request denied permissions in-app — must go to settings
+      showAlert(
+        `${permission.title} Permission Required`,
+        `This permission was denied. To enable it, go to your device Settings → Apps → GarageMinder → Permissions and allow "${permission.title}".`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open Settings',
+            onPress: () => openAppSettings(),
+          },
+        ]
+      );
+      return;
+    }
+
+    // Permission not asked yet — request it inline
+    setPermissionsLoading(true);
+    try {
+      const result = await requestPermission(permission.key);
+      const updated = await checkAllPermissions();
+      setPermissions(updated);
+
+      if (result === 'granted') {
+        showAlert('Permission Granted', `${permission.title} has been enabled.`);
+      } else if (result === 'denied') {
+        showAlert(
+          'Permission Denied',
+          `${permission.title} was denied. You can enable it in your device Settings → Apps → GarageMinder → Permissions.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => openAppSettings() },
+          ]
+        );
+      }
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     showAlert(
@@ -667,6 +731,106 @@ export default function SettingsScreen() {
               />
             }
           />
+        </Card>
+
+        {/* ── App Permissions Section ──────────────────────────────────────── */}
+        <Card style={styles.section}>
+          <View style={styles.permissionsHeader}>
+            <Text style={styles.sectionTitle}>App Permissions</Text>
+            <Pressable
+              onPress={async () => {
+                setPermissionsLoading(true);
+                const perms = await checkAllPermissions();
+                setPermissions(perms);
+                setPermissionsLoading(false);
+              }}
+              style={styles.permissionsRefresh}
+            >
+              {permissionsLoading
+                ? <ActivityIndicator size="small" color={theme.colors.primary} />
+                : <MaterialIcons name="refresh" size={20} color={theme.colors.primary} />
+              }
+            </Pressable>
+          </View>
+
+          <Text style={styles.permissionsSubtitle}>
+            GarageMinder needs these permissions to work correctly. Tap any item to enable it.
+          </Text>
+
+          {permissions.map((perm, index) => {
+            const statusColor = getPermissionStatusColor(perm.status, theme.colors);
+            const label = getPermissionStatusLabel(perm.status);
+            const isActionable = perm.status !== 'granted' && perm.status !== 'unavailable';
+
+            return (
+              <Pressable
+                key={perm.key}
+                style={({ pressed }) => [
+                  styles.permissionRow,
+                  index < permissions.length - 1 && styles.permissionRowBorder,
+                  pressed && isActionable && styles.permissionRowPressed,
+                ]}
+                onPress={() => isActionable && handlePermissionAction(perm)}
+                disabled={!isActionable}
+              >
+                {/* Left: icon */}
+                <View style={[styles.permissionIcon, { backgroundColor: `${statusColor}18` }]}>
+                  <MaterialIcons
+                    name={perm.icon as any}
+                    size={22}
+                    color={statusColor}
+                  />
+                </View>
+
+                {/* Middle: title + description */}
+                <View style={styles.permissionInfo}>
+                  <View style={styles.permissionTitleRow}>
+                    <Text style={styles.permissionTitle}>{perm.title}</Text>
+                    {perm.isRequired && (
+                      <View style={styles.requiredBadge}>
+                        <Text style={styles.requiredBadgeText}>Required</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.permissionDescription}>{perm.description}</Text>
+
+                  {/* Action hint for non-granted */}
+                  {perm.status === 'denied' && (
+                    <View style={styles.permissionActionHint}>
+                      <MaterialIcons name="settings" size={12} color={statusColor} />
+                      <Text style={[styles.permissionActionHintText, { color: statusColor }]}>
+                        Tap to open device settings
+                      </Text>
+                    </View>
+                  )}
+                  {perm.status === 'not_asked' && (
+                    <View style={styles.permissionActionHint}>
+                      <MaterialIcons name="touch-app" size={12} color={statusColor} />
+                      <Text style={[styles.permissionActionHintText, { color: statusColor }]}>
+                        Tap to allow
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Right: status badge */}
+                <View style={[styles.permissionStatusBadge, { backgroundColor: `${statusColor}18` }]}>
+                  <View style={[styles.permissionStatusDot, { backgroundColor: statusColor }]} />
+                  <Text style={[styles.permissionStatusLabel, { color: statusColor }]}>
+                    {label}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+
+          {/* Footer note */}
+          <View style={styles.permissionsFooter}>
+            <MaterialIcons name="info-outline" size={14} color={theme.colors.textSubtle} />
+            <Text style={styles.permissionsFooterText}>
+              After granting permissions in device settings, return to this screen to refresh.
+            </Text>
+          </View>
         </Card>
 
         {/* Security Section */}
@@ -1178,5 +1342,122 @@ const styles = StyleSheet.create({
   },
   optionPillTextActive: {
     color: '#FFFFFF',
+  },
+  // Permissions section
+  permissionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.xs,
+  },
+  permissionsRefresh: {
+    padding: theme.spacing.xs,
+  },
+  permissionsSubtitle: {
+    fontSize: theme.typography.bodySmall,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.md,
+    lineHeight: theme.typography.bodySmall * 1.4,
+    includeFontPadding: false,
+  },
+  permissionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.md,
+  },
+  permissionRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSubtle,
+  },
+  permissionRowPressed: {
+    opacity: 0.7,
+  },
+  permissionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  permissionInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  permissionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  permissionTitle: {
+    fontSize: theme.typography.bodyMedium,
+    fontWeight: theme.typography.weightSemiBold,
+    color: theme.colors.text,
+    includeFontPadding: false,
+  },
+  requiredBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    backgroundColor: `${theme.colors.primary}20`,
+    borderRadius: 4,
+  },
+  requiredBadgeText: {
+    fontSize: 10,
+    fontWeight: theme.typography.weightSemiBold,
+    color: theme.colors.primary,
+    includeFontPadding: false,
+  },
+  permissionDescription: {
+    fontSize: theme.typography.bodySmall,
+    color: theme.colors.textSecondary,
+    lineHeight: theme.typography.bodySmall * 1.3,
+    includeFontPadding: false,
+  },
+  permissionActionHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  permissionActionHintText: {
+    fontSize: 11,
+    fontWeight: theme.typography.weightMedium,
+    includeFontPadding: false,
+  },
+  permissionStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.full,
+    flexShrink: 0,
+  },
+  permissionStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  permissionStatusLabel: {
+    fontSize: theme.typography.labelSmall,
+    fontWeight: theme.typography.weightSemiBold,
+    includeFontPadding: false,
+  },
+  permissionsFooter: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSubtle,
+  },
+  permissionsFooterText: {
+    flex: 1,
+    fontSize: theme.typography.labelSmall,
+    color: theme.colors.textSubtle,
+    lineHeight: theme.typography.labelSmall * 1.4,
+    includeFontPadding: false,
   },
 });
