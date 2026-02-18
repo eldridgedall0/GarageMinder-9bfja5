@@ -160,14 +160,20 @@ export async function apiRequest<T = any>(
     headers['X-Device-Id'] = deviceId;
   }
 
+  // Create abort controller for timeout (AbortSignal.timeout not supported in React Native)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
+
   try {
     console.log('[ApiClient] Making request with headers:', JSON.stringify(headers, null, 2));
     
     const response = await fetch(url, {
       ...options,
       headers,
-      signal: AbortSignal.timeout(API_CONFIG.TIMEOUT),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     console.log(`[ApiClient] Response status: ${response.status} ${response.statusText}`);
     console.log('[ApiClient] Response headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
@@ -234,6 +240,7 @@ export async function apiRequest<T = any>(
     console.log('[ApiClient] Request successful, returning data');
     return result.data as T;
   } catch (error: any) {
+    clearTimeout(timeoutId);
     if (error instanceof ApiError) {
       throw error;
     }
