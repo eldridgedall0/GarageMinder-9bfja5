@@ -79,9 +79,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const vehicles = await fetchVehiclesFromAPI();
       console.log(`[AuthContext] Loaded ${vehicles.length} vehicles from API`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[AuthContext] Failed to fetch vehicles:', error);
-      throw new Error('Failed to load your vehicles. Please try again.');
+      // Throw with descriptive error message for user
+      throw new Error(error?.message || 'Failed to load your vehicles. Please check your internet connection and try again.');
     }
   };
 

@@ -16,10 +16,11 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { isAuthenticated } = useAuth();
   const { activeTrip, activeVehicle, isTracking, startTrip, stopTrip } = useTripTracking();
-  const { vehicles, switchVehicle, refreshVehicles, loading: vehiclesLoading } = useVehicles();
+  const { vehicles, switchVehicle, refreshVehicles, fetchFromAPI, loading: vehiclesLoading } = useVehicles();
   const { getPendingCount } = useTrips();
   const { showAlert } = useAlert();
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   // Reload vehicles from cache when authentication state changes
   // (AuthContext already fetched from API during login)
@@ -29,6 +30,22 @@ export default function DashboardScreen() {
       refreshVehicles(); // This loads from cache, which was populated during login
     }
   }, [isAuthenticated, refreshVehicles]);
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      await fetchFromAPI();
+      showAlert('Success', 'Vehicles loaded successfully');
+    } catch (error: any) {
+      console.error('[DashboardScreen] Retry failed:', error);
+      showAlert(
+        'Failed to Load Vehicles',
+        error?.message || 'Unable to fetch vehicles from server. Please check your internet connection and try again.'
+      );
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   const handleStartTrip = () => {
     if (!activeVehicle) {
@@ -78,10 +95,11 @@ export default function DashboardScreen() {
           <Text style={styles.emptyStateTitle}>No Vehicles Found</Text>
           <Text style={styles.emptyStateText}>Add a vehicle to your GarageMinder account to start tracking</Text>
           <Button
-            title="Retry"
-            onPress={refreshVehicles}
+            title={retrying ? "Loading..." : "Retry"}
+            onPress={handleRetry}
             variant="secondary"
             size="small"
+            disabled={retrying}
             style={{ marginTop: theme.spacing.lg }}
           />
         </View>
