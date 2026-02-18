@@ -15,7 +15,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, NativeModules } from 'react-native';
+import { Platform, NativeEventEmitter, NativeModules } from 'react-native';
 
 // ─── Storage Keys ─────────────────────────────────────────────────────────────
 
@@ -221,14 +221,17 @@ export async function checkIfDeviceConnected(deviceId: string): Promise<boolean>
 
 // ─── BLE Scanning ─────────────────────────────────────────────────────────────
 
-import BleManager from 'react-native-ble-manager';
-import { NativeEventEmitter, NativeModules } from 'react-native';
+// Only import BleManager on native platforms
+let BleManager: any = null;
+if (Platform.OS !== 'web') {
+  BleManager = require('react-native-ble-manager').default;
+}
 
 // NOTE: BleManager must be started once before scanning
 let bleStarted = false;
 
 async function ensureBleStarted(): Promise<void> {
-  if (!bleStarted) {
+  if (!bleStarted && BleManager) {
     await BleManager.start({ showAlert: false });
     bleStarted = true;
   }
@@ -252,6 +255,11 @@ export async function scanForBluetoothDevices(
   onDeviceFound: (device: ScannedDevice) => void,
   durationSeconds: number = 8
 ): Promise<void> {
+  // Not supported on web
+  if (Platform.OS === 'web' || !BleManager) {
+    throw new Error('Bluetooth scanning is not supported on web. Please use manual device entry.');
+  }
+
   await ensureBleStarted();
 
   // Check if Bluetooth is enabled
@@ -312,6 +320,8 @@ export async function scanForBluetoothDevices(
 }
 
 export async function stopBluetoothScan(): Promise<void> {
+  if (Platform.OS === 'web' || !BleManager) return;
+  
   try {
     await ensureBleStarted();
     await BleManager.stopScan();
@@ -321,6 +331,8 @@ export async function stopBluetoothScan(): Promise<void> {
 }
 
 export async function getBluetoothState(): Promise<'on' | 'off' | 'unavailable'> {
+  if (Platform.OS === 'web' || !BleManager) return 'unavailable';
+  
   try {
     await ensureBleStarted();
     return await new Promise<'on' | 'off' | 'unavailable'>((resolve) => {
