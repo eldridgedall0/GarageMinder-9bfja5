@@ -203,13 +203,13 @@ export default function DashboardScreen() {
           <View style={styles.vehicleDetails}>
             <Text style={styles.vehicleLabel}>Current Vehicle</Text>
             <Text style={styles.vehicleName}>
-              {currentActiveVehicle 
-                ? `${currentActiveVehicle.year} ${currentActiveVehicle.make} ${currentActiveVehicle.model}`
+              {activeVehicle 
+                ? `${activeVehicle.year} ${activeVehicle.make} ${activeVehicle.model}`
                 : 'No Vehicle Selected'}
             </Text>
-            {currentActiveVehicle && (
+            {activeVehicle && (
               <Text style={styles.vehicleOdometer}>
-                Odometer: {currentActiveVehicle.currentOdometer.toLocaleString()} mi
+                Odometer: {activeVehicle.currentOdometer.toLocaleString()} mi
               </Text>
             )}
           </View>
