@@ -70,6 +70,22 @@ export default function SettingsScreen() {
     setSyncSettings(prev => prev ? { ...prev, autoSyncEnabled: enabled } : null);
   };
 
+  const handleBiometricToggle = async (enabled: boolean) => {
+    if (enabled) {
+      const success = await enableBiometric();
+      if (success) {
+        setBiometricEnabled(true);
+        showAlert('Biometric Enabled', 'You can now use biometric authentication to unlock the app');
+      } else {
+        showAlert('Failed', 'Could not enable biometric authentication');
+      }
+    } else {
+      await disableBiometric();
+      setBiometricEnabled(false);
+      showAlert('Biometric Disabled', 'Biometric authentication has been disabled');
+    }
+  };
+
   const handleLogout = () => {
     showAlert(
       'Sign Out',
