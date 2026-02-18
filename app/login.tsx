@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Pressable, TextInput } from 'react-native';
-import { WebView, WebViewNavigation, WebViewMessageEvent } from 'react-native-webview';
+import { View, Text, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import { WebView, WebViewNavigation } from 'react-native-webview';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -8,6 +8,14 @@ import { theme } from '../constants/theme';
 import { API_CONFIG } from '../constants/config';
 import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '@/template';
+
+// Import cookie manager
+let CookieManager: any;
+try {
+  CookieManager = require('@react-native-cookies/cookies').default;
+} catch (error) {
+  console.warn('Cookie manager not available. Please install @react-native-cookies/cookies');
+}
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -18,58 +26,65 @@ export default function LoginScreen() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [canGoBack, setCanGoBack] = useState(false);
-  const [showDirectLogin, setShowDirectLogin] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  const handleNavigationStateChange = (navState: WebViewNavigation) => {
+  const handleNavigationStateChange = async (navState: WebViewNavigation) => {
     setCanGoBack(navState.canGoBack);
     console.log('[LoginScreen] URL changed:', navState.url);
 
     // Detect successful login redirect
     if (navState.url.includes('login_success=1') || navState.url.includes('/app/')) {
-      // WordPress cookies are HttpOnly and cannot be accessed via JavaScript
-      // Redirect user to direct login form instead
-      console.log('[LoginScreen] Login detected, redirecting to direct login');
-      showAlert(
-        'Complete Login',
-        'Please enter your credentials below to complete sign-in.',
-        [
-          {
-            text: 'OK',
-            onPress: () => setShowDirectLogin(true),
-          },
-        ]
-      );
-      setIsLoading(false);
+      console.log('[LoginScreen] Login success detected, extracting cookies...');
+      setIsAuthenticating(true);
+      
+      try {
+        // Check if cookie manager is available
+        if (!CookieManager) {
+          throw new Error(
+            'Cookie manager not installed. Please run: npm install @react-native-cookies/cookies'
+          );
+        }
+
+        // Extract cookies using native cookie manager
+        const cookies = await CookieManager.get('https://yesca.st');
+        console.log('[LoginScreen] Cookie keys:', Object.keys(cookies));
+        
+        // Build cookie string
+        const cookieString = Object.entries(cookies)
+          .map(([name, cookie]: [string, any]) => `${name}=${cookie.value}`)
+          .join('; ');
+        
+        console.log('[LoginScreen] Has WP cookie:', cookieString.includes('wordpress_logged_in'));
+        console.log('[LoginScreen] Cookie preview:', cookieString.substring(0, 80) + '...');
+
+        if (!cookieString || !cookieString.includes('wordpress_logged_in')) {
+          throw new Error('WordPress session cookie not found. Login may have failed.');
+        }
+
+        // Exchange cookie for JWT tokens and fetch user data + vehicles
+        console.log('[LoginScreen] Exchanging cookie for JWT tokens...');
+        await loginWithCookies(cookieString);
+        
+        // Small delay to ensure state updates
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Navigate to home screen
+        console.log('[LoginScreen] Login complete, navigating to home...');
+        router.replace('/(tabs)');
+        
+      } catch (error: any) {
+        console.error('[LoginScreen] Login error:', error);
+        setIsAuthenticating(false);
+        showAlert('Login Failed', error.message || 'Failed to complete login. Please try again.');
+      }
     }
   };
 
   const handleBack = () => {
-    if (showDirectLogin) {
-      setShowDirectLogin(false);
-    } else if (canGoBack && webViewRef.current) {
+    if (canGoBack && webViewRef.current) {
       webViewRef.current.goBack();
     } else {
       router.back();
-    }
-  };
-
-  const handleDirectLogin = async () => {
-    if (!username || !password) {
-      showAlert('Required Fields', 'Please enter both email and password.');
-      return;
-    }
-    
-    setIsLoading(true);
-    try {
-      const { login } = await import('../services/authService');
-      await login(username, password);
-      router.replace('/(tabs)');
-    } catch (error: any) {
-      showAlert('Login Failed', error.message || 'Invalid username or password.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -80,6 +95,7 @@ export default function LoginScreen() {
         <Pressable 
           style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
           onPress={handleBack}
+          disabled={isAuthenticating}
         >
           <MaterialIcons name="arrow-back" size={24} color={theme.colors.text} />
         </Pressable>
@@ -88,114 +104,35 @@ export default function LoginScreen() {
       </View>
 
       {/* Loading Indicator */}
-      {isLoading && !showDirectLogin && (
+      {(isLoading || isAuthenticating) && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>
+            {isAuthenticating ? 'Signing in...' : 'Loading...'}
+          </Text>
         </View>
       )}
 
-      {/* WebView or Direct Login Form */}
-      {!showDirectLogin ? (
-        <WebView
-          ref={webViewRef}
-          source={{ uri: API_CONFIG.LOGIN_URL }}
-          style={styles.webview}
-          onNavigationStateChange={handleNavigationStateChange}
-          onLoadStart={() => setIsLoading(true)}
-          onLoadEnd={() => setIsLoading(false)}
-          sharedCookiesEnabled={true}
-          thirdPartyCookiesEnabled={true}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-        />
-      ) : (
-        <View style={styles.directLoginForm}>
-          <View style={styles.formContainer}>
-            <Text style={styles.formTitle}>Sign In</Text>
-            <Text style={styles.formSubtitle}>Enter your GarageMinder credentials</Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email Address</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="your@email.com"
-                placeholderTextColor={theme.colors.textSubtle}
-                value={username}
-                onChangeText={setUsername}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor={theme.colors.textSubtle}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={true}
-                autoCapitalize="none"
-                autoCorrect={false}
-                editable={!isLoading}
-              />
-            </View>
-
-            <Pressable
-              style={({ pressed }) => [
-                styles.loginButton,
-                pressed && styles.loginButtonPressed,
-                isLoading && styles.loginButtonDisabled,
-              ]}
-              onPress={handleDirectLogin}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.loginButtonText}>Sign In</Text>
-              )}
-            </Pressable>
-
-            <Pressable
-              style={styles.switchMethodButton}
-              onPress={() => setShowDirectLogin(false)}
-              disabled={isLoading}
-            >
-              <MaterialIcons name="arrow-back" size={16} color={theme.colors.primary} />
-              <Text style={styles.switchMethodText}>Back to web login</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
+      {/* WebView */}
+      <WebView
+        ref={webViewRef}
+        source={{ uri: API_CONFIG.LOGIN_URL }}
+        style={styles.webview}
+        onNavigationStateChange={handleNavigationStateChange}
+        onLoadStart={() => setIsLoading(true)}
+        onLoadEnd={() => setIsLoading(false)}
+        sharedCookiesEnabled={true}
+        thirdPartyCookiesEnabled={true}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+      />
 
       {/* Help Text */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        {!showDirectLogin ? (
-          <>
-            <MaterialIcons name="info-outline" size={16} color={theme.colors.textSubtle} />
-            <Text style={styles.footerText}>
-              Sign in with your GarageMinder account
-            </Text>
-            <Pressable
-              style={styles.troubleButton}
-              onPress={() => setShowDirectLogin(true)}
-            >
-              <Text style={styles.troubleText}>Use direct login</Text>
-            </Pressable>
-          </>
-        ) : (
-          <>
-            <MaterialIcons name="lock-outline" size={16} color={theme.colors.textSubtle} />
-            <Text style={styles.footerText}>
-              Your credentials are securely encrypted
-            </Text>
-          </>
-        )}
+        <MaterialIcons name="info-outline" size={16} color={theme.colors.textSubtle} />
+        <Text style={styles.footerText}>
+          Sign in with your GarageMinder account
+        </Text>
       </View>
     </SafeAreaView>
   );
@@ -265,95 +202,6 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: theme.typography.labelSmall,
     color: theme.colors.textSubtle,
-    includeFontPadding: false,
-  },
-  troubleButton: {
-    marginLeft: 'auto',
-  },
-  troubleText: {
-    fontSize: theme.typography.labelSmall,
-    color: theme.colors.primary,
-    fontWeight: theme.typography.weightSemiBold,
-    includeFontPadding: false,
-  },
-  directLoginForm: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
-  },
-  formContainer: {
-    maxWidth: 400,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  formTitle: {
-    fontSize: 28,
-    fontWeight: theme.typography.weightBold,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
-    includeFontPadding: false,
-  },
-  formSubtitle: {
-    fontSize: theme.typography.bodyMedium,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.xl,
-    includeFontPadding: false,
-  },
-  inputGroup: {
-    marginBottom: theme.spacing.lg,
-  },
-  inputLabel: {
-    fontSize: theme.typography.labelMedium,
-    fontWeight: theme.typography.weightSemiBold,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.sm,
-    includeFontPadding: false,
-  },
-  input: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-    fontSize: theme.typography.bodyMedium,
-    color: theme.colors.text,
-    includeFontPadding: false,
-  },
-  loginButton: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.md,
-    alignItems: 'center',
-    marginTop: theme.spacing.md,
-    minHeight: 48,
-    justifyContent: 'center',
-  },
-  loginButtonPressed: {
-    opacity: 0.8,
-  },
-  loginButtonDisabled: {
-    opacity: 0.5,
-  },
-  loginButtonText: {
-    fontSize: theme.typography.bodyLarge,
-    fontWeight: theme.typography.weightSemiBold,
-    color: '#FFFFFF',
-    includeFontPadding: false,
-  },
-  switchMethodButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.xs,
-    marginTop: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-  },
-  switchMethodText: {
-    fontSize: theme.typography.bodyMedium,
-    color: theme.colors.primary,
     includeFontPadding: false,
   },
 });
