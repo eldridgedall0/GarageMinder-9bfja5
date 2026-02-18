@@ -128,9 +128,9 @@ export async function exchangeToken(cookies: string): Promise<User> {
   const deviceInfo = await getDeviceInfo();
   
   try {
-    const endpoint = `${API_CONFIG.BASE_URL}/auth/exchange-token`;
-    console.log('Exchange token endpoint:', endpoint);
-    console.log('Cookies:', cookies.substring(0, 50) + '...');
+    const endpoint = `${API_CONFIG.BASE_URL}/auth/token-exchange`;
+    console.log('[AuthService] Token exchange URL:', endpoint);
+    console.log('[AuthService] Cookie preview:', cookies.substring(0, 80) + '...');
     
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -145,9 +145,9 @@ export async function exchangeToken(cookies: string): Promise<User> {
       }),
     });
 
-    console.log('Exchange token response status:', response.status);
+    console.log('[AuthService] Exchange status:', response.status);
     const responseText = await response.text();
-    console.log('Exchange token response body:', responseText.substring(0, 200));
+    console.log('[AuthService] Exchange body preview:', responseText.substring(0, 200));
     
     let result: ApiResponse<LoginResponse>;
     try {
