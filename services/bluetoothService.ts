@@ -218,3 +218,93 @@ export async function checkIfDeviceConnected(deviceId: string): Promise<boolean>
   // This is a placeholder for future native BT detection.
   return false;
 }
+
+// ─── BLE Scanning ─────────────────────────────────────────────────────────────
+
+import { BleManager, Device, State } from 'react-native-ble-plx';
+
+// Singleton BLE manager — only created when needed
+let bleManager: BleManager | null = null;
+
+function getBleManager(): BleManager {
+  if (!bleManager) {
+    bleManager = new BleManager();
+  }
+  return bleManager;
+}
+
+export interface ScannedDevice {
+  id: string;
+  name: string;
+  rssi: number;
+  isAlreadyMapped: boolean;
+}
+
+/**
+ * Scan for nearby BLE devices for specified duration.
+ * Returns unique devices with names (unnamed devices are filtered out).
+ * Caller is responsible for calling stopScan() or this resolves automatically.
+ */
+export async function scanForBluetoothDevices(
+  onDeviceFound: (device: ScannedDevice) => void,
+  durationMs: number = 8000
+): Promise<void> {
+  const manager = getBleManager();
+  const found = new Map<string, ScannedDevice>();
+
+  // Check BT state first
+  const state = await manager.state();
+  if (state !== State.PoweredOn) {
+    throw new Error(
+      state === State.PoweredOff
+        ? 'Bluetooth is turned off. Please enable Bluetooth and try again.'
+        : 'Bluetooth is not available on this device.'
+    );
+  }
+
+  const existingMappings = await getDeviceMappings();
+  const mappedIds = new Set(existingMappings.map(m => m.deviceId));
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      manager.stopDeviceScan();
+      resolve();
+    }, durationMs);
+
+    manager.startDeviceScan(null, { allowDuplicates: false }, (error, device) => {
+      if (error) {
+        clearTimeout(timer);
+        manager.stopDeviceScan();
+        reject(new Error(error.message));
+        return;
+      }
+
+      if (device && device.name && !found.has(device.id)) {
+        const scanned: ScannedDevice = {
+          id: device.id,
+          name: device.name,
+          rssi: device.rssi ?? -100,
+          isAlreadyMapped: mappedIds.has(device.id),
+        };
+        found.set(device.id, scanned);
+        onDeviceFound(scanned);
+      }
+    });
+  });
+}
+
+export function stopBluetoothScan(): void {
+  bleManager?.stopDeviceScan();
+}
+
+export async function getBluetoothState(): Promise<'on' | 'off' | 'unavailable'> {
+  try {
+    const manager = getBleManager();
+    const state = await manager.state();
+    if (state === State.PoweredOn) return 'on';
+    if (state === State.PoweredOff) return 'off';
+    return 'unavailable';
+  } catch {
+    return 'unavailable';
+  }
+}

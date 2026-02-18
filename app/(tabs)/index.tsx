@@ -15,12 +15,14 @@ import { getAutoStartSettings, getAutoStartState } from '../../services/bluetoot
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { isAuthenticated, vehicles, vehiclesLoading, vehicleError, reloadVehicles } = useAuth();
-  const { activeTrip, activeVehicle, isTracking, startTrip, stopTrip } = useTripTracking();
+  const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
+  const activeVehicle = vehicles.find(v => v.id === activeVehicleId) || vehicles[0] || null;
+  const { activeTrip, isTracking, startTrip, stopTrip } = useTripTracking({ activeVehicle });
   const { getPendingCount } = useTrips();
   const { showAlert } = useAlert();
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
+  const [isStartingTrip, setIsStartingTrip] = useState(false);
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
   const [autoStartPhase, setAutoStartPhase] = useState<string>('idle');
 
@@ -50,8 +52,7 @@ export default function DashboardScreen() {
     })();
   }, [vehicles]);
 
-  // Get the active vehicle from the list
-  const currentActiveVehicle = vehicles.find(v => v.id === activeVehicleId) || vehicles[0] || null;
+
 
   const handleRetry = async () => {
     setRetrying(true);
@@ -78,12 +79,25 @@ export default function DashboardScreen() {
     }
   };
 
-  const handleStartTrip = () => {
-    if (!currentActiveVehicle) {
+  const handleStartTrip = async () => {
+    if (!activeVehicle) {
       showAlert('No Vehicle Selected', 'Please select a vehicle first');
       return;
     }
-    startTrip();
+    setIsStartingTrip(true);
+    try {
+      const success = await startTrip();
+      if (!success) {
+        showAlert(
+          'Could Not Start Trip',
+          'Location permission is required to track trips. Please enable location access in your device settings and try again.'
+        );
+      }
+    } catch (error: any) {
+      showAlert('Error', error?.message || 'Failed to start trip. Please try again.');
+    } finally {
+      setIsStartingTrip(false);
+    }
   };
 
   const handleStopTrip = () => {
@@ -253,9 +267,10 @@ export default function DashboardScreen() {
               Tap below to start recording your trip. Distance and time will be tracked automatically.
             </Text>
             <Button
-              title="Start Trip"
+              title={isStartingTrip ? "Starting..." : "Start Trip"}
               onPress={handleStartTrip}
               size="large"
+              disabled={isStartingTrip || !activeVehicle}
               style={styles.actionButton}
             />
             <View style={styles.features}>

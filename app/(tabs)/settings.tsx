@@ -21,6 +21,8 @@ import {
 } from '../../services/biometricService';
 import { useAlert } from '@/template';
 import { useAuth } from '../../hooks/useAuth';
+import { BluetoothDevicePickerModal } from '../../components/bluetooth/BluetoothDevicePickerModal';
+import { VehicleAssignBottomSheet } from '../../components/bluetooth/VehicleAssignBottomSheet';
 import {
   getAutoStartSettings,
   updateAutoStartSettings,
@@ -47,9 +49,9 @@ export default function SettingsScreen() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [autoStartSettings, setAutoStartSettings] = useState<AutoStartSettings | null>(null);
   const [deviceMappings, setDeviceMappings] = useState<BluetoothDeviceMapping[]>([]);
-  const [showAddDeviceSheet, setShowAddDeviceSheet] = useState(false);
-  const [newDeviceName, setNewDeviceName] = useState('');
-  const [selectingVehicleForDevice, setSelectingVehicleForDevice] = useState<string | null>(null);
+  const [showDevicePicker, setShowDevicePicker] = useState(false);
+  const [pendingDevice, setPendingDevice] = useState<{ id: string; name: string } | null>(null);
+  const [showVehicleAssign, setShowVehicleAssign] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -133,24 +135,34 @@ export default function SettingsScreen() {
     setAutoStartSettings(updated);
   };
 
-  const handleAddDevice = async () => {
-    if (!newDeviceName.trim()) {
-      showAlert('Required', 'Please enter a device name');
-      return;
-    }
-    const deviceId = createDeviceIdFromName(newDeviceName.trim());
-    const mapping: Omit<BluetoothDeviceMapping, 'addedAt'> = {
-      deviceId,
-      deviceName: newDeviceName.trim(),
+  const handleDeviceSelected = async (device: { id: string; name: string }) => {
+    // Add device with no vehicle yet
+    await addDeviceMapping({
+      deviceId: device.id,
+      deviceName: device.name,
       vehicleId: '',
       vehicleName: 'Not assigned',
       enabled: true,
-    };
-    await addDeviceMapping(mapping);
+    });
     const updated = await getDeviceMappings();
     setDeviceMappings(updated);
-    setNewDeviceName('');
-    setShowAddDeviceSheet(false);
+    // Now show vehicle assignment
+    setPendingDevice(device);
+    setShowVehicleAssign(true);
+  };
+
+  const handleVehicleAssigned = async (vehicleId: string, vehicleName: string) => {
+    if (!pendingDevice) return;
+    await updateDeviceMapping(pendingDevice.id, { vehicleId, vehicleName });
+    const updated = await getDeviceMappings();
+    setDeviceMappings(updated);
+    setPendingDevice(null);
+    setShowVehicleAssign(false);
+  };
+
+  const handleVehicleAssignSkipped = () => {
+    setPendingDevice(null);
+    setShowVehicleAssign(false);
   };
 
   const handleRemoveDevice = async (deviceId: string) => {
@@ -172,12 +184,7 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleAssignVehicle = async (deviceId: string, vehicleId: string, vehicleName: string) => {
-    await updateDeviceMapping(deviceId, { vehicleId, vehicleName });
-    const updated = await getDeviceMappings();
-    setDeviceMappings(updated);
-    setSelectingVehicleForDevice(null);
-  };
+
 
   const handleLogout = () => {
     showAlert(
@@ -368,7 +375,10 @@ export default function SettingsScreen() {
                           <View style={styles.deviceItemInfo}>
                             <Text style={styles.deviceName}>{mapping.deviceName}</Text>
                             <Pressable
-                              onPress={() => setSelectingVehicleForDevice(mapping.deviceId)}
+                              onPress={() => {
+                                setPendingDevice({ id: mapping.deviceId, name: mapping.deviceName });
+                                setShowVehicleAssign(true);
+                              }}
                             >
                               <Text style={[
                                 styles.deviceVehicle,
@@ -405,76 +415,32 @@ export default function SettingsScreen() {
                   </View>
                 )}
 
-                {/* Vehicle Selector (visible when assigning a vehicle to a device) */}
-                {selectingVehicleForDevice && (
-                  <View style={styles.vehicleSelector}>
-                    <Text style={styles.vehicleSelectorTitle}>Select vehicle for this device:</Text>
-                    {vehicles.map((v) => (
-                      <Pressable
-                        key={v.id}
-                        style={styles.vehicleSelectorItem}
-                        onPress={() => handleAssignVehicle(
-                          selectingVehicleForDevice,
-                          v.id,
-                          `${v.year} ${v.make} ${v.model}`
-                        )}
-                      >
-                        <MaterialIcons name="directions-car" size={18} color={theme.colors.primary} />
-                        <Text style={styles.vehicleSelectorItemText}>
-                          {v.year} {v.make} {v.model}
-                        </Text>
-                      </Pressable>
-                    ))}
-                    <Pressable
-                      style={styles.vehicleSelectorCancel}
-                      onPress={() => setSelectingVehicleForDevice(null)}
-                    >
-                      <Text style={styles.vehicleSelectorCancelText}>Cancel</Text>
-                    </Pressable>
-                  </View>
-                )}
-
                 {/* Add Device Button */}
-                {!showAddDeviceSheet ? (
-                  <Pressable
-                    style={styles.addDeviceButton}
-                    onPress={() => setShowAddDeviceSheet(true)}
-                  >
-                    <MaterialIcons name="add" size={18} color={theme.colors.primary} />
-                    <Text style={styles.addDeviceButtonText}>Add Bluetooth Device</Text>
-                  </Pressable>
-                ) : (
-                  <View style={styles.addDeviceSheet}>
-                    <Text style={styles.addDeviceSheetTitle}>Enter Bluetooth Device Name</Text>
-                    <Text style={styles.addDeviceSheetHint}>
-                      Open your phone's Bluetooth settings, find your car's name, and type it exactly here.
-                    </Text>
-                    <TextInput
-                      style={styles.addDeviceInput}
-                      value={newDeviceName}
-                      onChangeText={setNewDeviceName}
-                      placeholder="e.g. Toyota Audio, Honda BT"
-                      placeholderTextColor={theme.colors.textSubtle}
-                      autoFocus
-                      returnKeyType="done"
-                      onSubmitEditing={handleAddDevice}
-                    />
-                    <View style={styles.addDeviceActions}>
-                      <Pressable
-                        style={[styles.addDeviceAction, styles.addDeviceActionCancel]}
-                        onPress={() => { setShowAddDeviceSheet(false); setNewDeviceName(''); }}
-                      >
-                        <Text style={styles.addDeviceActionCancelText}>Cancel</Text>
-                      </Pressable>
-                      <Pressable
-                        style={[styles.addDeviceAction, styles.addDeviceActionConfirm]}
-                        onPress={handleAddDevice}
-                      >
-                        <Text style={styles.addDeviceActionConfirmText}>Add Device</Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                )}
+                <Pressable
+                  style={styles.addDeviceButton}
+                  onPress={() => setShowDevicePicker(true)}
+                >
+                  <MaterialIcons name="add" size={18} color={theme.colors.primary} />
+                  <Text style={styles.addDeviceButtonText}>Add Bluetooth Device</Text>
+                </Pressable>
+
+                {/* Modals */}
+                <BluetoothDevicePickerModal
+                  visible={showDevicePicker}
+                  onClose={() => setShowDevicePicker(false)}
+                  onDeviceSelected={handleDeviceSelected}
+                  alreadyMappedIds={deviceMappings.map(m => m.deviceId)}
+                />
+
+                <VehicleAssignBottomSheet
+                  visible={showVehicleAssign}
+                  deviceName={pendingDevice?.name || ''}
+                  vehicles={vehicles}
+                  currentVehicleId={pendingDevice ? deviceMappings.find(m => m.deviceId === pendingDevice.id)?.vehicleId : undefined}
+                  onAssign={handleVehicleAssigned}
+                  onSkip={handleVehicleAssignSkipped}
+                  onClose={handleVehicleAssignSkipped}
+                />
 
                 <View style={styles.divider} />
 
