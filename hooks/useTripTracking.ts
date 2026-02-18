@@ -19,11 +19,78 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
   const [activeTrip, setActiveTripState] = useState<Trip | null>(null);
   const [isTracking, setIsTracking] = useState(false);
 
-  // Keep a ref to the vehicle so callbacks always see the latest value
+  // --- FIX: Use refs so callbacks always read current values, not stale closures
+  const activeTripRef = useRef<Trip | null>(null);
   const activeVehicleRef = useRef<Vehicle | null>(activeVehicle);
+  const isFinalizingRef = useRef(false); // prevent double-finalize
+
+  // Keep refs in sync with state/props
   useEffect(() => {
     activeVehicleRef.current = activeVehicle;
   }, [activeVehicle]);
+
+  // Sync activeTripState → ref
+  useEffect(() => {
+    activeTripRef.current = activeTrip;
+  }, [activeTrip]);
+
+  // --- FIX: finalizeTrip reads from ref, not from stale closure
+  const finalizeTrip = useCallback(async (distance: number, duration: number) => {
+    // Guard against double-finalize (can happen if stopTracking triggers onTripComplete
+    // at the same time stopTrip manually calls finalizeTrip)
+    if (isFinalizingRef.current) {
+      console.log('[useTripTracking] finalizeTrip already in progress, skipping duplicate call');
+      return;
+    }
+    isFinalizingRef.current = true;
+
+    const trip = activeTripRef.current; // read from ref, not stale closure
+    const vehicle = activeVehicleRef.current;
+
+    if (!trip) {
+      console.warn('[useTripTracking] finalizeTrip called but no activeTrip in ref');
+      isFinalizingRef.current = false;
+      return;
+    }
+
+    try {
+      const now = new Date();
+      const endOdometer = trip.startOdometer + distance;
+
+      const completed: Trip = {
+        ...trip,
+        endTime: now,
+        duration,
+        calculatedDistance: distance,
+        endOdometer,
+        status: 'completed',
+        updatedAt: now,
+      };
+
+      await saveTrip(completed);
+      await setActiveTrip(null);
+
+      if (vehicle) {
+        await updateVehicleOdometer(vehicle.id, endOdometer);
+      }
+
+      // Reset state
+      activeTripRef.current = null;
+      setActiveTripState(null);
+      setIsTracking(false);
+
+      console.log('[useTripTracking] Trip finalized:', completed.id, distance.toFixed(2), 'miles');
+
+      const shouldAutoSync = await canAutoSync();
+      if (shouldAutoSync) {
+        setTimeout(() => syncTrips([completed.id]), 30000);
+      }
+    } finally {
+      isFinalizingRef.current = false;
+    }
+  }, []); // stable — reads from refs
+
+  const gpsDistanceRef = useRef(0);
 
   const {
     isTracking: isGpsTracking,
@@ -32,23 +99,27 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
     stopTracking: stopGpsTracking,
   } = useLocationTracking({
     onLocationUpdate: (location, distance) => {
-      setActiveTripState(prev => {
-        if (!prev || !activeVehicleRef.current) return prev;
-        const distanceMiles = metersToMiles(distance);
-        const now = new Date();
-        const duration = now.getTime() - prev.startTime.getTime();
-        const updated: Trip = {
-          ...prev,
-          duration,
-          calculatedDistance: distanceMiles,
-          endOdometer: prev.startOdometer + distanceMiles,
-          updatedAt: now,
-        };
-        setActiveTrip(updated); // fire-and-forget save
-        return updated;
-      });
+      const currentTrip = activeTripRef.current;
+      if (!currentTrip || !activeVehicleRef.current) return;
+
+      gpsDistanceRef.current = distance; // keep ref in sync
+      const distanceMiles = metersToMiles(distance);
+      const now = new Date();
+      const duration = now.getTime() - currentTrip.startTime.getTime();
+      const updated: Trip = {
+        ...currentTrip,
+        duration,
+        calculatedDistance: distanceMiles,
+        endOdometer: currentTrip.startOdometer + distanceMiles,
+        updatedAt: now,
+      };
+      activeTripRef.current = updated; // update ref immediately
+      setActiveTripState(updated);
+      setActiveTrip(updated); // fire-and-forget save
     },
     onTripComplete: async (totalDistance, duration) => {
+      // Auto-complete (e.g. stationary timeout) — finalize from GPS callback
+      console.log('[useTripTracking] onTripComplete fired (auto-stop)');
       await finalizeTrip(metersToMiles(totalDistance), duration);
     },
   });
@@ -58,6 +129,7 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
     (async () => {
       const trip = await getActiveTrip();
       if (trip && trip.status === 'active') {
+        activeTripRef.current = trip;
         setActiveTripState(trip);
         setIsTracking(true);
       }
@@ -99,6 +171,7 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
       updatedAt: new Date(),
     };
 
+    activeTripRef.current = newTrip;
     setActiveTripState(newTrip);
     await setActiveTrip(newTrip);
     setIsTracking(true);
@@ -107,63 +180,30 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
   };
 
   const stopTrip = async () => {
-    if (!activeTrip) return;
-    console.log('[useTripTracking] Stopping trip:', activeTrip.id);
-    
+    const currentTrip = activeTripRef.current;
+    if (!currentTrip) {
+      console.warn('[useTripTracking] stopTrip called but no activeTrip');
+      return;
+    }
+    console.log('[useTripTracking] Stopping trip:', currentTrip.id);
+
+    // Stop GPS silently — we handle finalization below to avoid double-finalize
     try {
-      await stopGpsTracking();
-      const finalDistance = metersToMiles(gpsDistance);
-      const duration = Date.now() - activeTrip.startTime.getTime();
-      await finalizeTrip(finalDistance, duration);
+      await stopGpsTracking(true);
     } catch (error) {
-      console.error('[useTripTracking] Error stopping trip:', error);
-      // Still finalize even if GPS stop fails
-      const finalDistance = metersToMiles(gpsDistance);
-      const duration = Date.now() - activeTrip.startTime.getTime();
-      await finalizeTrip(finalDistance, duration);
-    }
-  };
-
-  const finalizeTrip = async (distance: number, duration: number) => {
-    const trip = activeTrip;
-    const vehicle = activeVehicleRef.current;
-    if (!trip) return;
-
-    const now = new Date();
-    const endOdometer = trip.startOdometer + distance;
-
-    const completed: Trip = {
-      ...trip,
-      endTime: now,
-      duration,
-      calculatedDistance: distance,
-      endOdometer,
-      status: 'completed',
-      updatedAt: now,
-    };
-
-    await saveTrip(completed);
-    await setActiveTrip(null);
-
-    if (vehicle) {
-      await updateVehicleOdometer(vehicle.id, endOdometer);
+      console.error('[useTripTracking] Error stopping GPS (non-fatal):', error);
     }
 
-    // Force reset state to ensure UI updates
-    setActiveTripState(null);
-    setIsTracking(false);
-    
-    console.log('[useTripTracking] Trip finalized:', completed.id, distance.toFixed(2), 'miles');
-
-    const shouldAutoSync = await canAutoSync();
-    if (shouldAutoSync) {
-      setTimeout(() => syncTrips([completed.id]), 30000);
-    }
+    // Use ref value for latest distance (avoids stale gpsDistance state)
+    const finalDistance = metersToMiles(gpsDistanceRef.current);
+    const duration = Date.now() - currentTrip.startTime.getTime();
+    await finalizeTrip(finalDistance, duration);
   };
 
   return {
     activeTrip,
-    isTracking: isTracking || isGpsTracking,
+    // Only show isTracking from our own state — GPS state is internal
+    isTracking,
     startTrip,
     stopTrip,
   };
