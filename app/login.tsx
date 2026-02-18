@@ -51,10 +51,13 @@ export default function LoginScreen() {
         setIsLoading(true);
         
         try {
-          // Exchange cookie for JWT token
+          // Exchange cookie for JWT token and fetch vehicles
           await loginWithCookies(data.cookies);
           
-          // Navigate to main app
+          // Small delay to ensure state updates
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Navigate to main app (home screen)
           router.replace('/(tabs)');
         } catch (error: any) {
           showAlert(

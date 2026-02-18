@@ -22,8 +22,13 @@ export interface Vehicle {
   year: number;
   make: string;
   model: string;
+  trim?: string;
   currentOdometer: number;
   userId: string;
+  displayName?: string;
+  vin?: string;
+  plate?: string;
+  photoPath?: string;
   createdAt: Date;
 }
 

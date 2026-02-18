@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../services/authService';
 import * as authService from '../services/authService';
+import { fetchVehiclesFromAPI, clearVehicleCache } from '../services/vehicleService';
 
 interface AuthContextType {
   user: User | null;
@@ -66,16 +67,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const loggedInUser = await authService.login(username, password);
     setUser(loggedInUser);
     setIsAuthenticated(true);
+    
+    // Fetch user's vehicles from API
+    try {
+      await fetchVehiclesFromAPI();
+    } catch (error) {
+      console.error('Failed to fetch vehicles after login:', error);
+      // Don't fail login if vehicle fetch fails
+    }
   };
 
   const loginWithCookies = async (cookies: string) => {
     const loggedInUser = await authService.exchangeToken(cookies);
     setUser(loggedInUser);
     setIsAuthenticated(true);
+    
+    // Fetch user's vehicles from API
+    try {
+      await fetchVehiclesFromAPI();
+    } catch (error) {
+      console.error('Failed to fetch vehicles after login:', error);
+      // Don't fail login if vehicle fetch fails
+    }
   };
 
   const logout = async (allDevices: boolean = false) => {
     await authService.logout(allDevices);
+    
+    // Clear vehicle cache
+    await clearVehicleCache();
+    
     setUser(null);
     setIsAuthenticated(false);
   };

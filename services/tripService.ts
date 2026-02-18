@@ -6,21 +6,12 @@ const VEHICLES_KEY = '@garageminder_vehicles';
 const ACTIVE_TRIP_KEY = '@garageminder_active_trip';
 const ACTIVE_VEHICLE_KEY = '@garageminder_active_vehicle';
 
-// Initialize with demo vehicle
+// Initialize storage (no longer creates demo vehicle - vehicles come from API)
 export async function initializeStorage(): Promise<void> {
-  const existingVehicles = await getVehicles();
-  if (existingVehicles.length === 0) {
-    const demoVehicle: Vehicle = {
-      id: 'demo-vehicle-1',
-      year: 2020,
-      make: 'Toyota',
-      model: 'Camry',
-      currentOdometer: 45230,
-      userId: 'demo-user',
-      createdAt: new Date(),
-    };
-    await AsyncStorage.setItem(VEHICLES_KEY, JSON.stringify([demoVehicle]));
-    await AsyncStorage.setItem(ACTIVE_VEHICLE_KEY, demoVehicle.id);
+  // Just initialize storage, vehicles will be fetched from API after login
+  const existingTrips = await getTrips();
+  if (!existingTrips) {
+    await AsyncStorage.setItem(TRIPS_KEY, JSON.stringify([]));
   }
 }
 
@@ -76,7 +67,8 @@ export async function setActiveTrip(trip: Trip | null): Promise<void> {
   }
 }
 
-// Vehicle operations
+// Vehicle operations - DEPRECATED: Use vehicleService.ts instead
+// These are kept for backward compatibility only
 export async function getVehicles(): Promise<Vehicle[]> {
   const data = await AsyncStorage.getItem(VEHICLES_KEY);
   if (!data) return [];
