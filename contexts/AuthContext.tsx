@@ -92,8 +92,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log(`[AuthContext] Loaded ${fetchedVehicles.length} vehicles from API`);
     } catch (error: any) {
       console.error('[AuthContext] Failed to fetch vehicles:', error);
-      setVehicleError(error?.message || 'Failed to load vehicles');
-      throw new Error(error?.message || 'Failed to load your vehicles. Please check your internet connection and try again.');
+      
+      // Build detailed error message for development
+      let detailedError = `Error: ${error?.message || 'Unknown error'}\n`;
+      if (error?.code) detailedError += `Code: ${error.code}\n`;
+      if (error?.details) detailedError += `Details: ${JSON.stringify(error.details)}\n`;
+      if (error?.stack) detailedError += `Stack: ${error.stack.split('\n').slice(0, 3).join('\n')}`;
+      
+      setVehicleError(detailedError);
+      throw error; // Throw the original error with all details
     } finally {
       setVehiclesLoading(false);
     }
@@ -119,8 +126,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log(`[AuthContext] Loaded ${fetchedVehicles.length} vehicles from API`);
     } catch (error: any) {
       console.error('[AuthContext] Failed to fetch vehicles:', error);
-      setVehicleError(error?.message || 'Failed to load vehicles');
-      throw new Error(error?.message || 'Failed to load your vehicles. Please try again.');
+      
+      // Build detailed error message for development
+      let detailedError = `Error: ${error?.message || 'Unknown error'}\n`;
+      if (error?.code) detailedError += `Code: ${error.code}\n`;
+      if (error?.details) detailedError += `Details: ${JSON.stringify(error.details)}\n`;
+      if (error?.stack) detailedError += `Stack: ${error.stack.split('\n').slice(0, 3).join('\n')}`;
+      
+      setVehicleError(detailedError);
+      throw error; // Throw the original error with all details
     } finally {
       setVehiclesLoading(false);
     }
@@ -156,7 +170,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log(`[AuthContext] Reloaded ${freshVehicles.length} vehicles from API`);
     } catch (error: any) {
       console.error('[AuthContext] Failed to reload vehicles:', error);
-      setVehicleError(error?.message || 'Failed to reload vehicles');
+      
+      // Build detailed error message for development
+      let detailedError = `Error: ${error?.message || 'Unknown error'}\n`;
+      if (error?.code) detailedError += `Code: ${error.code}\n`;
+      if (error?.details) detailedError += `Details: ${JSON.stringify(error.details)}\n`;
+      if (error?.stack) detailedError += `Stack: ${error.stack.split('\n').slice(0, 3).join('\n')}`;
+      
+      setVehicleError(detailedError);
       throw error;
     } finally {
       setVehiclesLoading(false);

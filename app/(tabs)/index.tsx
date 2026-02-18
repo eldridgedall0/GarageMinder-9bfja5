@@ -46,10 +46,19 @@ export default function DashboardScreen() {
       showAlert('Success', 'Vehicles loaded successfully');
     } catch (error: any) {
       console.error('[DashboardScreen] Retry failed:', error);
-      showAlert(
-        'Failed to Load Vehicles',
-        error?.message || 'Unable to fetch vehicles from server. Please check your internet connection and try again.'
-      );
+      
+      // Build detailed error message for development debugging
+      let errorMessage = '';
+      if (error?.message) errorMessage += `Message: ${error.message}\n\n`;
+      if (error?.code) errorMessage += `Code: ${error.code}\n\n`;
+      if (error?.details) errorMessage += `Details: ${JSON.stringify(error.details, null, 2)}\n\n`;
+      if (error?.stack) errorMessage += `Stack:\n${error.stack.split('\n').slice(0, 5).join('\n')}`;
+      
+      if (!errorMessage) {
+        errorMessage = `Unknown error\n\nError: ${JSON.stringify(error, null, 2)}`;
+      }
+      
+      showAlert('Failed to Load Vehicles', errorMessage);
     } finally {
       setRetrying(false);
     }

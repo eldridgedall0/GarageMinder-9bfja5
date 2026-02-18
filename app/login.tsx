@@ -50,17 +50,22 @@ export default function LoginScreen() {
     } catch (error: any) {
       console.error('[LoginScreen] Login error:', error);
       
-      let errorMessage = 'Unable to sign in. Please check your credentials.';
+      // Build detailed error message for development debugging
+      let errorTitle = 'Sign In Failed';
+      let errorMessage = '';
       
-      if (error.code === 'INVALID_CREDENTIALS') {
-        errorMessage = 'Invalid email or password';
-      } else if (error.code === 'NETWORK_ERROR') {
-        errorMessage = 'Network error. Please check your connection.';
-      } else if (error.message) {
-        errorMessage = error.message;
+      // Add all available error information
+      if (error?.message) errorMessage += `Message: ${error.message}\n\n`;
+      if (error?.code) errorMessage += `Code: ${error.code}\n\n`;
+      if (error?.details) errorMessage += `Details: ${JSON.stringify(error.details, null, 2)}\n\n`;
+      if (error?.stack) errorMessage += `Stack Trace:\n${error.stack.split('\n').slice(0, 5).join('\n')}`;
+      
+      // Fallback if no error info available
+      if (!errorMessage) {
+        errorMessage = `Unknown error occurred\n\nError Object: ${JSON.stringify(error, null, 2)}`;
       }
       
-      showAlert('Sign In Failed', errorMessage);
+      showAlert(errorTitle, errorMessage);
       setIsLoading(false);
     }
   };
