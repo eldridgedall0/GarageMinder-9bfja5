@@ -270,7 +270,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.headlineMedium,
     fontWeight: theme.typography.weightBold,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   closeButton: {
     padding: theme.spacing.sm,
@@ -280,7 +279,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginBottom: theme.spacing.lg,
     lineHeight: theme.typography.bodyMedium * 1.4,
-    includeFontPadding: false,
   },
   scanButton: {
     flexDirection: 'row',
@@ -296,7 +294,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyLarge,
     fontWeight: theme.typography.weightSemiBold,
     color: '#FFFFFF',
-    includeFontPadding: false,
   },
   scanningContainer: {
     backgroundColor: theme.colors.surface,
@@ -314,7 +311,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.text,
     fontWeight: theme.typography.weightMedium,
-    includeFontPadding: false,
   },
   progressBar: {
     height: 3,
@@ -330,7 +326,6 @@ const styles = StyleSheet.create({
   scanningHint: {
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSubtle,
-    includeFontPadding: false,
   },
   errorContainer: {
     alignItems: 'center',
@@ -344,7 +339,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.text,
     textAlign: 'center',
-    includeFontPadding: false,
   },
   retryButton: {
     paddingHorizontal: theme.spacing.lg,
@@ -357,7 +351,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.primary,
     fontWeight: theme.typography.weightMedium,
-    includeFontPadding: false,
   },
   devicesContainer: {
     flex: 1,
@@ -373,13 +366,11 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     fontWeight: theme.typography.weightSemiBold,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   rescanText: {
     fontSize: theme.typography.bodySmall,
     color: theme.colors.primary,
     fontWeight: theme.typography.weightMedium,
-    includeFontPadding: false,
   },
   deviceList: {
     flex: 1,
@@ -414,7 +405,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     fontWeight: theme.typography.weightMedium,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   deviceRowNameDisabled: {
     color: theme.colors.textSubtle,
@@ -423,7 +413,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSubtle,
     marginTop: 2,
-    includeFontPadding: false,
   },
   manualSection: {
     marginBottom: theme.spacing.xl,
@@ -440,7 +429,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
-    includeFontPadding: false,
   },
   manualEntry: {
     gap: theme.spacing.sm,
@@ -452,7 +440,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
     lineHeight: theme.typography.bodySmall * 1.4,
-    includeFontPadding: false,
   },
   manualEntryInput: {
     backgroundColor: theme.colors.surface,
@@ -463,7 +450,6 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md,
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   manualEntryActions: {
     flexDirection: 'row',
@@ -481,7 +467,6 @@ const styles = StyleSheet.create({
   manualEntryCancelText: {
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.textSecondary,
-    includeFontPadding: false,
   },
   manualEntryConfirm: {
     flex: 2,
@@ -497,6 +482,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     fontWeight: theme.typography.weightSemiBold,
     color: '#FFFFFF',
-    includeFontPadding: false,
   },
 });

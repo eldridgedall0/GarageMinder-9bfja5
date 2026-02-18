@@ -162,27 +162,23 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodySmall,
     color: theme.colors.primary,
     fontWeight: theme.typography.weightMedium,
-    includeFontPadding: false,
   },
   deviceName: {
     fontSize: theme.typography.bodyLarge,
     fontWeight: theme.typography.weightSemiBold,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   assignTitle: {
     fontSize: theme.typography.bodyLarge,
     fontWeight: theme.typography.weightSemiBold,
     color: theme.colors.text,
     marginBottom: theme.spacing.sm,
-    includeFontPadding: false,
   },
   assignSubtitle: {
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
     marginBottom: theme.spacing.lg,
     lineHeight: theme.typography.bodySmall * 1.4,
-    includeFontPadding: false,
   },
   vehicleList: {
     maxHeight: 280,
@@ -224,7 +220,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     fontWeight: theme.typography.weightMedium,
     color: theme.colors.text,
-    includeFontPadding: false,
   },
   vehicleNameSelected: {
     color: theme.colors.primary,
@@ -233,7 +228,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodySmall,
     color: theme.colors.textSecondary,
     marginTop: 2,
-    includeFontPadding: false,
   },
   noVehicles: {
     padding: theme.spacing.lg,
@@ -243,7 +237,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-    includeFontPadding: false,
   },
   skipButton: {
     alignItems: 'center',
@@ -252,6 +245,5 @@ const styles = StyleSheet.create({
   skipButtonText: {
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.textSubtle,
-    includeFontPadding: false,
   },
 });
