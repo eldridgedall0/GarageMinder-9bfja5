@@ -61,37 +61,63 @@ async function getDeviceInfo() {
 export async function login(username: string, password: string): Promise<User> {
   const deviceInfo = await getDeviceInfo();
   
-  const response = await fetch(`${API_CONFIG.BASE_URL}/auth/login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      username,
-      password,
-      ...deviceInfo,
-    }),
-  });
+  try {
+    const endpoint = `${API_CONFIG.BASE_URL}/auth/login`;
+    console.log('Login endpoint:', endpoint);
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username,
+        password,
+        ...deviceInfo,
+      }),
+    });
 
-  const result: ApiResponse<LoginResponse> = await response.json();
+    console.log('Login response status:', response.status);
+    const responseText = await response.text();
+    console.log('Login response body:', responseText.substring(0, 200));
 
-  if (!result.success || !result.data) {
+    let result: ApiResponse<LoginResponse>;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      throw new ApiError(
+        'INVALID_RESPONSE',
+        `Server returned invalid response. Status: ${response.status}. Body: ${responseText.substring(0, 100)}`
+      );
+    }
+
+    if (!result.success || !result.data) {
+      throw new ApiError(
+        result.error?.code || 'LOGIN_FAILED',
+        result.error?.message || 'Login failed'
+      );
+    }
+
+    // Store tokens
+    await storeTokens(result.data.access_token, result.data.refresh_token);
+    
+    // Store user data
+    await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
+
+    // Register device for push notifications
+    await registerDevice(deviceInfo);
+
+    return result.data.user;
+  } catch (error) {
+    console.error('Login error:', error);
+    if (error instanceof ApiError) {
+      throw error;
+    }
     throw new ApiError(
-      result.error?.code || 'LOGIN_FAILED',
-      result.error?.message || 'Login failed'
+      'LOGIN_FAILED',
+      error instanceof Error ? error.message : 'Login failed. Please check your connection.'
     );
   }
-
-  // Store tokens
-  await storeTokens(result.data.access_token, result.data.refresh_token);
-  
-  // Store user data
-  await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
-
-  // Register device for push notifications
-  await registerDevice(deviceInfo);
-
-  return result.data.user;
 }
 
 /**
@@ -101,38 +127,65 @@ export async function login(username: string, password: string): Promise<User> {
 export async function exchangeToken(cookies: string): Promise<User> {
   const deviceInfo = await getDeviceInfo();
   
-  const response = await fetch(`${API_CONFIG.BASE_URL}/auth/exchange-token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Cookie': cookies,
-    },
-    body: JSON.stringify({
-      device_id: deviceInfo.device_id,
-      device_name: deviceInfo.device_name,
-      platform: deviceInfo.platform,
-    }),
-  });
+  try {
+    const endpoint = `${API_CONFIG.BASE_URL}/auth/exchange-token`;
+    console.log('Exchange token endpoint:', endpoint);
+    console.log('Cookies:', cookies.substring(0, 50) + '...');
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': cookies,
+      },
+      body: JSON.stringify({
+        device_id: deviceInfo.device_id,
+        device_name: deviceInfo.device_name,
+        platform: deviceInfo.platform,
+      }),
+    });
 
-  const result: ApiResponse<LoginResponse> = await response.json();
+    console.log('Exchange token response status:', response.status);
+    const responseText = await response.text();
+    console.log('Exchange token response body:', responseText.substring(0, 200));
+    
+    let result: ApiResponse<LoginResponse>;
+    try {
+      result = JSON.parse(responseText);
+    } catch (parseError) {
+      throw new ApiError(
+        'INVALID_RESPONSE',
+        `Server returned invalid response. Status: ${response.status}. Body: ${responseText.substring(0, 100)}`
+      );
+    }
 
-  if (!result.success || !result.data) {
+    if (!result.success || !result.data) {
+      throw new ApiError(
+        result.error?.code || 'TOKEN_EXCHANGE_FAILED',
+        result.error?.message || 'Failed to exchange token'
+      );
+    }
+
+    // Store tokens
+    await storeTokens(result.data.access_token, result.data.refresh_token);
+    
+    // Store user data
+    await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
+
+    // Register device
+    await registerDevice(deviceInfo);
+
+    return result.data.user;
+  } catch (error) {
+    console.error('Token exchange error:', error);
+    if (error instanceof ApiError) {
+      throw error;
+    }
     throw new ApiError(
-      result.error?.code || 'TOKEN_EXCHANGE_FAILED',
-      result.error?.message || 'Failed to exchange token'
+      'TOKEN_EXCHANGE_FAILED',
+      error instanceof Error ? error.message : 'Failed to exchange token. Please try logging in again.'
     );
   }
-
-  // Store tokens
-  await storeTokens(result.data.access_token, result.data.refresh_token);
-  
-  // Store user data
-  await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
-
-  // Register device
-  await registerDevice(deviceInfo);
-
-  return result.data.user;
 }
 
 /**
