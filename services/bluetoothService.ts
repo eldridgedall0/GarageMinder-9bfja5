@@ -221,10 +221,18 @@ export async function checkIfDeviceConnected(deviceId: string): Promise<boolean>
 
 // ─── BLE Scanning ─────────────────────────────────────────────────────────────
 
-// Only import BleManager on native platforms
+// Only import BleManager on native platforms with proper error handling
 let BleManager: any = null;
+let bleManagerAvailable = false;
+
 if (Platform.OS !== 'web') {
-  BleManager = require('react-native-ble-manager').default;
+  try {
+    BleManager = require('react-native-ble-manager').default;
+    bleManagerAvailable = true;
+  } catch (error) {
+    console.warn('[bluetoothService] react-native-ble-manager not available. Bluetooth scanning will use manual entry only.');
+    bleManagerAvailable = false;
+  }
 }
 
 // NOTE: BleManager must be started once before scanning
@@ -255,9 +263,11 @@ export async function scanForBluetoothDevices(
   onDeviceFound: (device: ScannedDevice) => void,
   durationSeconds: number = 8
 ): Promise<void> {
-  // Not supported on web
-  if (Platform.OS === 'web' || !BleManager) {
-    throw new Error('Bluetooth scanning is not supported on web. Please use manual device entry.');
+  // Check if BLE scanning is available
+  if (Platform.OS === 'web' || !bleManagerAvailable || !BleManager) {
+    throw new Error(
+      'Bluetooth scanning is not available in this build. Please use the "Add Manually" option to enter your car\'s Bluetooth name from your phone\'s Bluetooth settings.'
+    );
   }
 
   await ensureBleStarted();
@@ -320,7 +330,7 @@ export async function scanForBluetoothDevices(
 }
 
 export async function stopBluetoothScan(): Promise<void> {
-  if (Platform.OS === 'web' || !BleManager) return;
+  if (Platform.OS === 'web' || !bleManagerAvailable || !BleManager) return;
   
   try {
     await ensureBleStarted();
@@ -331,7 +341,7 @@ export async function stopBluetoothScan(): Promise<void> {
 }
 
 export async function getBluetoothState(): Promise<'on' | 'off' | 'unavailable'> {
-  if (Platform.OS === 'web' || !BleManager) return 'unavailable';
+  if (Platform.OS === 'web' || !bleManagerAvailable || !BleManager) return 'unavailable';
   
   try {
     await ensureBleStarted();
