@@ -21,13 +21,14 @@ export default function DashboardScreen() {
   const { showAlert } = useAlert();
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
 
-  // Refresh vehicles when authentication state changes
+  // Reload vehicles from cache when authentication state changes
+  // (AuthContext already fetched from API during login)
   useEffect(() => {
     if (isAuthenticated) {
-      console.log('[DashboardScreen] Auth state changed, refreshing vehicles...');
-      refreshVehicles();
+      console.log('[DashboardScreen] Auth state changed, reloading vehicles from cache...');
+      refreshVehicles(); // This loads from cache, which was populated during login
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, refreshVehicles]);
 
   const handleStartTrip = () => {
     if (!activeVehicle) {
@@ -51,12 +52,39 @@ export default function DashboardScreen() {
 
   const pendingCount = getPendingCount();
 
-  // Show loading state while vehicles are loading
-  if (vehiclesLoading && vehicles.length === 0) {
+  // Show loading state while vehicles are loading (only on initial load)
+  if (vehiclesLoading && vehicles.length === 0 && isAuthenticated) {
     return (
       <View style={[styles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.loadingText}>Loading your vehicles...</Text>
+      </View>
+    );
+  }
+
+  // Show empty state if no vehicles after loading
+  const showEmptyState = !vehiclesLoading && vehicles.length === 0 && isAuthenticated;
+  if (showEmptyState) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.headerTitle}>GarageMinder</Text>
+            <Text style={styles.headerSubtitle}>Mileage Tracker</Text>
+          </View>
+        </View>
+        <View style={[styles.container, styles.loadingContainer]}>
+          <MaterialIcons name="directions-car-filled" size={64} color={theme.colors.textSubtle} />
+          <Text style={styles.emptyStateTitle}>No Vehicles Found</Text>
+          <Text style={styles.emptyStateText}>Add a vehicle to your GarageMinder account to start tracking</Text>
+          <Button
+            title="Retry"
+            onPress={refreshVehicles}
+            variant="secondary"
+            size="small"
+            style={{ marginTop: theme.spacing.lg }}
+          />
+        </View>
       </View>
     );
   }
@@ -343,6 +371,22 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.bodyMedium,
     color: theme.colors.textSecondary,
     marginTop: theme.spacing.md,
+    includeFontPadding: false,
+  },
+  emptyStateTitle: {
+    fontSize: theme.typography.headlineMedium,
+    fontWeight: theme.typography.weightBold,
+    color: theme.colors.text,
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.sm,
+    includeFontPadding: false,
+  },
+  emptyStateText: {
+    fontSize: theme.typography.bodyMedium,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: theme.spacing.xl,
+    lineHeight: theme.typography.bodyMedium * 1.5,
     includeFontPadding: false,
   },
 });

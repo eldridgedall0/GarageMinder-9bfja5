@@ -14,9 +14,11 @@ export function useVehicles() {
   const [loading, setLoading] = useState(true);
 
   const loadVehicles = useCallback(async () => {
+    console.log('[useVehicles] Loading vehicles from cache...');
     setLoading(true);
     const allVehicles = await getVehicles();
     const active = await getActiveVehicle();
+    console.log(`[useVehicles] Loaded ${allVehicles.length} vehicles from cache`);
     setVehicles(allVehicles);
     setActiveVehicleState(active);
     setLoading(false);
@@ -33,14 +35,17 @@ export function useVehicles() {
   };
 
   const fetchFromAPI = useCallback(async () => {
+    console.log('[useVehicles] Fetching vehicles from API...');
     setLoading(true);
     try {
-      await fetchVehiclesFromAPI();
-      await loadVehicles();
+      const freshVehicles = await fetchVehiclesFromAPI();
+      console.log(`[useVehicles] API returned ${freshVehicles.length} vehicles`);
+      await loadVehicles(); // Reload from cache after API fetch
     } catch (error) {
-      console.error('Failed to fetch vehicles from API:', error);
+      console.error('[useVehicles] Failed to fetch vehicles from API:', error);
       // Still load cached vehicles on error
       await loadVehicles();
+      throw error; // Re-throw so caller knows it failed
     }
   }, [loadVehicles]);
 
