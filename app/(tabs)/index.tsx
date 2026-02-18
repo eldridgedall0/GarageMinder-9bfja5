@@ -10,6 +10,7 @@ import { useTripTracking } from '../../hooks/useTripTracking';
 import { useTrips } from '../../hooks/useTrips';
 import { useAuth } from '../../hooks/useAuth';
 import { useAlert } from '@/template';
+import { getAutoStartSettings, getAutoStartState } from '../../services/bluetoothService';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -20,6 +21,19 @@ export default function DashboardScreen() {
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
+  const [autoStartEnabled, setAutoStartEnabled] = useState(false);
+  const [autoStartPhase, setAutoStartPhase] = useState<string>('idle');
+
+  // Check AutoStart status
+  useEffect(() => {
+    const checkAutoStart = async () => {
+      const settings = await getAutoStartSettings();
+      const state = await getAutoStartState();
+      setAutoStartEnabled(settings.enabled);
+      setAutoStartPhase(state.phase);
+    };
+    checkAutoStart();
+  }, [isAuthenticated]);
 
   // On first load or when vehicles change, set active vehicle from AsyncStorage
   useEffect(() => {
@@ -138,6 +152,20 @@ export default function DashboardScreen() {
           <View style={styles.pendingBadge}>
             <MaterialIcons name="cloud-upload" size={16} color={theme.colors.pending} />
             <Text style={styles.pendingText}>{pendingCount} pending</Text>
+          </View>
+        )}
+        {autoStartEnabled && !isTracking && (
+          <View style={[styles.pendingBadge, { backgroundColor: `${theme.colors.primary}15` }]}>
+            <MaterialIcons
+              name="bluetooth"
+              size={16}
+              color={autoStartPhase === 'monitoring' ? theme.colors.primary : theme.colors.textSubtle}
+            />
+            <Text style={[styles.pendingText, {
+              color: autoStartPhase === 'monitoring' ? theme.colors.primary : theme.colors.textSubtle
+            }]}>
+              {autoStartPhase === 'monitoring' ? 'Monitoring' : 'AutoStart On'}
+            </Text>
           </View>
         )}
       </View>

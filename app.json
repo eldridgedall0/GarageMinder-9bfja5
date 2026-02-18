@@ -72,6 +72,14 @@
         {
           "faceIDPermission": "GarageMinder uses Face ID to secure your account"
         }
+      ],
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["peripheral", "central"],
+          "bluetoothAlwaysPermission": "Allow GarageMinder to use Bluetooth to automatically detect when you're in your car and start trip tracking."
+        }
       ]
     ],
     "experiments": {

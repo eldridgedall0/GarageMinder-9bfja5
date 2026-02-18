@@ -1,5 +1,7 @@
 export type TripStatus = 'active' | 'completed' | 'synced' | 'edited';
 
+export type TripClassification = 'personal' | 'business' | 'unclassified';
+
 export interface Trip {
   id: string;
   vehicleId: string;
@@ -11,6 +13,8 @@ export interface Trip {
   adjustedDistance: number | null; // User override
   duration: number; // milliseconds
   status: TripStatus;
+  classification: TripClassification;  // Personal, Business, or Unclassified
+  isAutoTracked: boolean;              // true if started via BT AutoStart
   notes: string;
   syncedAt: Date | null;
   createdAt: Date;
