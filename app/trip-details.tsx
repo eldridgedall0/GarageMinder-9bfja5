@@ -73,10 +73,15 @@ export default function TripDetailsScreen() {
 
   const handleSave = async () => {
     const newAdjustedDistance = adjustedDistance ? parseFloat(adjustedDistance) : null;
-    
+
+    // Recalculate endOdometer based on the effective distance (adjusted if set, else GPS)
+    const effectiveDistance = newAdjustedDistance ?? trip.calculatedDistance;
+    const newEndOdometer = trip.startOdometer + effectiveDistance;
+
     await updateTrip({
       ...trip,
       adjustedDistance: newAdjustedDistance,
+      endOdometer: newEndOdometer,
       notes,
     });
 
