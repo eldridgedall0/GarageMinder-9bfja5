@@ -38,10 +38,10 @@ export function useTrips() {
 
     // Filter by date range
     if (filters.dateFrom) {
-      result = result.filter(t => t.startTime >= filters.dateFrom!);
+      result = result.filter(t => new Date(t.startTime) >= filters.dateFrom!);
     }
     if (filters.dateTo) {
-      result = result.filter(t => t.startTime <= filters.dateTo!);
+      result = result.filter(t => new Date(t.startTime) <= filters.dateTo!);
     }
 
     // Filter by search query
@@ -54,9 +54,9 @@ export function useTrips() {
     result.sort((a, b) => {
       switch (sortBy) {
         case 'date-desc':
-          return b.startTime.getTime() - a.startTime.getTime();
+          return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
         case 'date-asc':
-          return a.startTime.getTime() - b.startTime.getTime();
+          return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
         case 'distance-desc':
           return (b.adjustedDistance || b.calculatedDistance) - (a.adjustedDistance || a.calculatedDistance);
         case 'duration-desc':
