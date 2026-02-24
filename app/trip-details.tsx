@@ -73,12 +73,23 @@ export default function TripDetailsScreen() {
 
   const handleSave = async () => {
     const newAdjustedDistance = adjustedDistance ? parseFloat(adjustedDistance) : null;
-    
+
+    // Calculate the new end odometer based on adjusted or calculated distance
+    const finalDistance = newAdjustedDistance !== null ? newAdjustedDistance : trip.calculatedDistance;
+    const newEndOdometer = trip.startOdometer + finalDistance;
+
     await updateTrip({
       ...trip,
       adjustedDistance: newAdjustedDistance,
+      endOdometer: newEndOdometer,
       notes,
     });
+
+    // Update vehicle odometer to match the trip's end odometer
+    if (vehicle) {
+      const { updateVehicleOdometer } = await import('../services/vehicleService');
+      await updateVehicleOdometer(vehicle.id, newEndOdometer);
+    }
 
     showAlert('Success', 'Trip updated successfully');
     setIsEditing(false);
