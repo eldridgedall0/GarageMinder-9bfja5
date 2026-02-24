@@ -30,7 +30,24 @@ interface ApiVehicle {
 export async function fetchVehiclesFromAPI(): Promise<Vehicle[]> {
   try {
     console.log('[VehicleService] Fetching vehicles from API...');
-
+    
+    // First, test basic connectivity
+    const { API_CONFIG } = await import('../constants/config');
+    console.log('[VehicleService] Testing API connectivity to:', API_CONFIG.BASE_URL);
+    
+    try {
+      const testResponse = await fetch(`${API_CONFIG.BASE_URL}/vehicles`, {
+        method: 'HEAD',
+        headers: { 'Accept': 'application/json' },
+      });
+      console.log('[VehicleService] Connectivity test response:', testResponse.status, testResponse.statusText);
+    } catch (testError: any) {
+      console.error('[VehicleService] Connectivity test failed:', testError?.message);
+      throw new Error(`Cannot reach API server at ${API_CONFIG.BASE_URL}. Error: ${testError?.message}`);
+    }
+    
+    // API response structure: { success: true, data: [...vehicles] }
+    // The api.get() method already extracts the 'data' field
     const apiVehicles = await api.get<ApiVehicle[]>('/vehicles');
     
     console.log('[VehicleService] API response:', apiVehicles);
@@ -77,9 +94,32 @@ export async function fetchVehiclesFromAPI(): Promise<Vehicle[]> {
 
     return vehicles;
   } catch (error: any) {
-    console.error('[VehicleService] Failed to fetch vehicles from API:', error?.message);
-    // Re-throw the original error cleanly — callers handle display
-    throw error;
+    console.error('[VehicleService] Failed to fetch vehicles from API');
+    console.error('[VehicleService] Error type:', error?.name);
+    console.error('[VehicleService] Error code:', error?.code);
+    console.error('[VehicleService] Error message:', error?.message);
+    console.error('[VehicleService] Error details:', error?.details);
+    console.error('[VehicleService] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    
+    // Build detailed error message for development debugging
+    let errorMsg = `Failed to load vehicles.\n\n`;
+    errorMsg += `Error Type: ${error?.name || 'Unknown'}\n`;
+    
+    if (error?.code) errorMsg += `Code: ${error.code}\n`;
+    if (error?.message) errorMsg += `Message: ${error.message}\n`;
+    if (error?.details) errorMsg += `Details: ${JSON.stringify(error.details)}\n`;
+    
+    // Add stack trace (first 3 lines)
+    if (error?.stack) {
+      const stackLines = error.stack.split('\n').slice(0, 3).join('\n');
+      errorMsg += `\nStack:\n${stackLines}`;
+    }
+    
+    // Include the API URL being called
+    const { API_CONFIG } = await import('../constants/config');
+    errorMsg += `\n\nAPI URL: ${API_CONFIG.BASE_URL}/vehicles`;
+    
+    throw new Error(errorMsg);
   }
 }
 
