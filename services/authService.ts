@@ -113,10 +113,25 @@ export async function login(username: string, password: string): Promise<User> {
     if (error instanceof ApiError) {
       throw error;
     }
-    throw new ApiError(
-      'LOGIN_FAILED',
-      error instanceof Error ? error.message : 'Login failed. Please check your connection.'
-    );
+    
+    // Provide more helpful error messages
+    let errorMessage = 'Login failed. ';
+    
+    if (error instanceof Error) {
+      if (error.message === 'Failed to fetch') {
+        if (Platform.OS === 'web') {
+          errorMessage += 'Cannot reach API server from web preview. This is likely a CORS issue. Please test on the OnSpace mobile app instead.';
+        } else {
+          errorMessage += 'Network error. Please check your internet connection.';
+        }
+      } else {
+        errorMessage += error.message;
+      }
+    } else {
+      errorMessage += 'Please check your connection.';
+    }
+    
+    throw new ApiError('LOGIN_FAILED', errorMessage);
   }
 }
 
