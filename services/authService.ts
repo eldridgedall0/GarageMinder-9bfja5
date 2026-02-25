@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { secureStorage } from './secureStorageService';
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import { API_CONFIG, STORAGE_KEYS } from '../constants/config';
@@ -28,13 +28,13 @@ export interface TokenExchangeRequest {
 
 // Generate unique device ID
 async function getOrCreateDeviceId(): Promise<string> {
-  let deviceId = await SecureStore.getItemAsync('device_id');
+  let deviceId = await secureStorage.getItemAsync('device_id');
   
   if (!deviceId) {
     // Generate new device ID
     const uniqueId = Device.modelId || Device.osInternalBuildId || Math.random().toString(36);
     deviceId = `${Platform.OS}_${uniqueId}`;
-    await SecureStore.setItemAsync('device_id', deviceId);
+    await secureStorage.setItemAsync('device_id', deviceId);
   }
   
   return deviceId;
@@ -102,7 +102,7 @@ export async function login(username: string, password: string): Promise<User> {
     await storeTokens(result.data.access_token, result.data.refresh_token);
     
     // Store user data
-    await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
+    await secureStorage.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
 
     // Register device for push notifications
     await registerDevice(deviceInfo);
@@ -170,7 +170,7 @@ export async function exchangeToken(cookies: string): Promise<User> {
     await storeTokens(result.data.access_token, result.data.refresh_token);
     
     // Store user data
-    await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
+    await secureStorage.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(result.data.user));
 
     // Register device
     await registerDevice(deviceInfo);
@@ -193,7 +193,7 @@ export async function exchangeToken(cookies: string): Promise<User> {
  */
 export async function logout(allDevices: boolean = false): Promise<void> {
   try {
-    const refreshToken = await SecureStore.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
+    const refreshToken = await secureStorage.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
     
     if (refreshToken) {
       await api.post('/auth/logout', {
@@ -219,7 +219,7 @@ export async function verifyToken(): Promise<User | null> {
     
     if (response.valid && response.user) {
       // Update stored user data
-      await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(response.user));
+      await secureStorage.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(response.user));
       return response.user;
     }
     
@@ -234,7 +234,7 @@ export async function verifyToken(): Promise<User | null> {
  */
 export async function getCurrentUser(): Promise<User | null> {
   try {
-    const userData = await SecureStore.getItemAsync(STORAGE_KEYS.USER_DATA);
+    const userData = await secureStorage.getItemAsync(STORAGE_KEYS.USER_DATA);
     if (!userData) return null;
     
     return JSON.parse(userData);
@@ -247,7 +247,7 @@ export async function getCurrentUser(): Promise<User | null> {
  * Check if user is authenticated
  */
 export async function isAuthenticated(): Promise<boolean> {
-  const accessToken = await SecureStore.getItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
+  const accessToken = await secureStorage.getItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
   return !!accessToken;
 }
 
@@ -270,7 +270,7 @@ export async function fetchUserProfile(): Promise<User> {
   const profile = await api.get<User>('/user/profile');
   
   // Update stored user data
-  await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(profile));
+  await secureStorage.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(profile));
   
   return profile;
 }

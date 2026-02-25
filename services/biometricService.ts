@@ -1,5 +1,5 @@
 import * as LocalAuthentication from 'expo-local-authentication';
-import * as SecureStore from 'expo-secure-store';
+import { secureStorage } from './secureStorageService';
 import { storage } from './storageService';
 
 const BIOMETRIC_ENABLED_KEY = '@garageminder_biometric_enabled';
@@ -105,17 +105,17 @@ export async function disableBiometric(): Promise<void> {
 
 // Store session securely
 export async function storeSecureSession(sessionData: string): Promise<void> {
-  await SecureStore.setItemAsync(SESSION_KEY, sessionData);
+  await secureStorage.setItemAsync(SESSION_KEY, sessionData);
 }
 
 // Get secure session
 export async function getSecureSession(): Promise<string | null> {
-  return await SecureStore.getItemAsync(SESSION_KEY);
+  return await secureStorage.getItemAsync(SESSION_KEY);
 }
 
 // Clear secure session
 export async function clearSecureSession(): Promise<void> {
-  await SecureStore.deleteItemAsync(SESSION_KEY);
+  await secureStorage.deleteItemAsync(SESSION_KEY);
 }
 
 // Check if session exists

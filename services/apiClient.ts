@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { secureStorage } from './secureStorageService';
 import { API_CONFIG, STORAGE_KEYS } from '../constants/config';
 
 export interface ApiResponse<T = any> {
@@ -35,34 +35,34 @@ export class ApiError extends Error {
 
 // Get stored tokens
 async function getAccessToken(): Promise<string | null> {
-  return await SecureStore.getItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
+  return await secureStorage.getItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
 }
 
 async function getRefreshToken(): Promise<string | null> {
-  return await SecureStore.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
+  return await secureStorage.getItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
 }
 
 // Store tokens
 export async function storeTokens(accessToken: string, refreshToken: string): Promise<void> {
-  await SecureStore.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
-  await SecureStore.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
+  await secureStorage.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
+  await secureStorage.setItemAsync(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
   
   // Store token expiry time
   const expiryTime = Date.now() + API_CONFIG.ACCESS_TOKEN_EXPIRY;
-  await SecureStore.setItemAsync(STORAGE_KEYS.TOKEN_EXPIRY, expiryTime.toString());
+  await secureStorage.setItemAsync(STORAGE_KEYS.TOKEN_EXPIRY, expiryTime.toString());
 }
 
 // Clear tokens
 export async function clearTokens(): Promise<void> {
-  await SecureStore.deleteItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
-  await SecureStore.deleteItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
-  await SecureStore.deleteItemAsync(STORAGE_KEYS.TOKEN_EXPIRY);
-  await SecureStore.deleteItemAsync(STORAGE_KEYS.USER_DATA);
+  await secureStorage.deleteItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
+  await secureStorage.deleteItemAsync(STORAGE_KEYS.REFRESH_TOKEN);
+  await secureStorage.deleteItemAsync(STORAGE_KEYS.TOKEN_EXPIRY);
+  await secureStorage.deleteItemAsync(STORAGE_KEYS.USER_DATA);
 }
 
 // Check if token is expired
 async function isTokenExpired(): Promise<boolean> {
-  const expiryStr = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN_EXPIRY);
+  const expiryStr = await secureStorage.getItemAsync(STORAGE_KEYS.TOKEN_EXPIRY);
   if (!expiryStr) return true;
   
   const expiry = parseInt(expiryStr, 10);
@@ -155,7 +155,7 @@ export async function apiRequest<T = any>(
   }
 
   // Add device ID if available
-  const deviceId = await SecureStore.getItemAsync('device_id');
+  const deviceId = await secureStorage.getItemAsync('device_id');
   if (deviceId) {
     headers['X-Device-Id'] = deviceId;
   }
