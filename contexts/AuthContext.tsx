@@ -48,27 +48,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const cachedUser = await authService.getCurrentUser();
         setUser(cachedUser);
         setIsAuthenticated(true);
-
-        // Load vehicles from local cache immediately so UI isn't empty
-        const { getVehicles } = await import('../services/vehicleService');
-        const cachedVehicles = await getVehicles();
-        if (cachedVehicles.length > 0) {
-          setVehicles(cachedVehicles);
-        }
         
         // Verify token in background
         const verifiedUser = await authService.verifyToken();
         if (verifiedUser) {
           setUser(verifiedUser);
-          // Refresh vehicles from API in background (non-blocking)
-          fetchVehiclesFromAPI()
-            .then(freshVehicles => setVehicles(freshVehicles))
-            .catch(err => console.warn('[AuthContext] Background vehicle refresh failed:', err));
         } else {
           // Token invalid, clear state
           setUser(null);
           setIsAuthenticated(false);
-          setVehicles([]);
         }
       } else {
         setUser(null);
