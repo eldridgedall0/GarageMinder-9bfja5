@@ -14,7 +14,7 @@
  * manually selects from their system-paired device list by name.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from './storageService';
 import { Platform, NativeEventEmitter, NativeModules } from 'react-native';
 
 // ─── Storage Keys ─────────────────────────────────────────────────────────────
@@ -80,7 +80,7 @@ const DEFAULT_AUTOSTART_STATE: AutoStartState = {
 
 export async function getAutoStartSettings(): Promise<AutoStartSettings> {
   try {
-    const data = await AsyncStorage.getItem(AUTOSTART_SETTINGS_KEY);
+    const data = await storage.getItem(AUTOSTART_SETTINGS_KEY);
     if (!data) return DEFAULT_AUTOSTART_SETTINGS;
     return { ...DEFAULT_AUTOSTART_SETTINGS, ...JSON.parse(data) };
   } catch {
@@ -93,7 +93,7 @@ export async function updateAutoStartSettings(
 ): Promise<AutoStartSettings> {
   const current = await getAutoStartSettings();
   const updated = { ...current, ...partial };
-  await AsyncStorage.setItem(AUTOSTART_SETTINGS_KEY, JSON.stringify(updated));
+  await storage.setItem(AUTOSTART_SETTINGS_KEY, JSON.stringify(updated));
   return updated;
 }
 
@@ -101,7 +101,7 @@ export async function updateAutoStartSettings(
 
 export async function getDeviceMappings(): Promise<BluetoothDeviceMapping[]> {
   try {
-    const data = await AsyncStorage.getItem(BT_DEVICE_MAPPINGS_KEY);
+    const data = await storage.getItem(BT_DEVICE_MAPPINGS_KEY);
     if (!data) return [];
     return JSON.parse(data);
   } catch {
@@ -116,13 +116,13 @@ export async function addDeviceMapping(
   // Remove any existing mapping for this device
   const filtered = mappings.filter(m => m.deviceId !== mapping.deviceId);
   filtered.push({ ...mapping, addedAt: Date.now() });
-  await AsyncStorage.setItem(BT_DEVICE_MAPPINGS_KEY, JSON.stringify(filtered));
+  await storage.setItem(BT_DEVICE_MAPPINGS_KEY, JSON.stringify(filtered));
 }
 
 export async function removeDeviceMapping(deviceId: string): Promise<void> {
   const mappings = await getDeviceMappings();
   const filtered = mappings.filter(m => m.deviceId !== deviceId);
-  await AsyncStorage.setItem(BT_DEVICE_MAPPINGS_KEY, JSON.stringify(filtered));
+  await storage.setItem(BT_DEVICE_MAPPINGS_KEY, JSON.stringify(filtered));
 }
 
 export async function updateDeviceMapping(
@@ -133,7 +133,7 @@ export async function updateDeviceMapping(
   const updated = mappings.map(m =>
     m.deviceId === deviceId ? { ...m, ...partial } : m
   );
-  await AsyncStorage.setItem(BT_DEVICE_MAPPINGS_KEY, JSON.stringify(updated));
+  await storage.setItem(BT_DEVICE_MAPPINGS_KEY, JSON.stringify(updated));
 }
 
 export async function getMappingForDevice(
@@ -147,7 +147,7 @@ export async function getMappingForDevice(
 
 export async function getAutoStartState(): Promise<AutoStartState> {
   try {
-    const data = await AsyncStorage.getItem(AUTOSTART_STATE_KEY);
+    const data = await storage.getItem(AUTOSTART_STATE_KEY);
     if (!data) return DEFAULT_AUTOSTART_STATE;
     return JSON.parse(data);
   } catch {
@@ -156,11 +156,11 @@ export async function getAutoStartState(): Promise<AutoStartState> {
 }
 
 export async function setAutoStartState(state: AutoStartState): Promise<void> {
-  await AsyncStorage.setItem(AUTOSTART_STATE_KEY, JSON.stringify(state));
+  await storage.setItem(AUTOSTART_STATE_KEY, JSON.stringify(state));
 }
 
 export async function resetAutoStartState(): Promise<void> {
-  await AsyncStorage.setItem(
+  await storage.setItem(
     AUTOSTART_STATE_KEY,
     JSON.stringify(DEFAULT_AUTOSTART_STATE)
   );

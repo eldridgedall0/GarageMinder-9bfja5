@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from './storageService';
 import { Trip, Vehicle, TripStatus } from '../types/trip';
 
 const TRIPS_KEY = '@garageminder_trips';
@@ -11,13 +11,13 @@ export async function initializeStorage(): Promise<void> {
   // Just initialize storage, vehicles will be fetched from API after login
   const existingTrips = await getTrips();
   if (!existingTrips) {
-    await AsyncStorage.setItem(TRIPS_KEY, JSON.stringify([]));
+    await storage.setItem(TRIPS_KEY, JSON.stringify([]));
   }
 }
 
 // Trip operations
 export async function getTrips(): Promise<Trip[]> {
-  const data = await AsyncStorage.getItem(TRIPS_KEY);
+  const data = await storage.getItem(TRIPS_KEY);
   if (!data) return [];
   
   return JSON.parse(data, (key, value) => {
@@ -38,7 +38,7 @@ export async function saveTrip(trip: Trip): Promise<void> {
     trips.push(trip);
   }
   
-  await AsyncStorage.setItem(TRIPS_KEY, JSON.stringify(trips));
+  await storage.setItem(TRIPS_KEY, JSON.stringify(trips));
 }
 
 export async function deleteTrip(tripId: string): Promise<void> {
@@ -48,7 +48,7 @@ export async function deleteTrip(tripId: string): Promise<void> {
 }
 
 export async function getActiveTrip(): Promise<Trip | null> {
-  const data = await AsyncStorage.getItem(ACTIVE_TRIP_KEY);
+  const data = await storage.getItem(ACTIVE_TRIP_KEY);
   if (!data) return null;
   
   return JSON.parse(data, (key, value) => {
@@ -61,16 +61,16 @@ export async function getActiveTrip(): Promise<Trip | null> {
 
 export async function setActiveTrip(trip: Trip | null): Promise<void> {
   if (trip) {
-    await AsyncStorage.setItem(ACTIVE_TRIP_KEY, JSON.stringify(trip));
+    await storage.setItem(ACTIVE_TRIP_KEY, JSON.stringify(trip));
   } else {
-    await AsyncStorage.removeItem(ACTIVE_TRIP_KEY);
+    await storage.removeItem(ACTIVE_TRIP_KEY);
   }
 }
 
 // Vehicle operations - DEPRECATED: Use vehicleService.ts instead
 // These are kept for backward compatibility only
 export async function getVehicles(): Promise<Vehicle[]> {
-  const data = await AsyncStorage.getItem(VEHICLES_KEY);
+  const data = await storage.getItem(VEHICLES_KEY);
   if (!data) return [];
   
   return JSON.parse(data, (key, value) => {
@@ -87,12 +87,12 @@ export async function updateVehicleOdometer(vehicleId: string, newOdometer: numb
   
   if (vehicle) {
     vehicle.currentOdometer = newOdometer;
-    await AsyncStorage.setItem(VEHICLES_KEY, JSON.stringify(vehicles));
+    await storage.setItem(VEHICLES_KEY, JSON.stringify(vehicles));
   }
 }
 
 export async function getActiveVehicle(): Promise<Vehicle | null> {
-  const activeId = await AsyncStorage.getItem(ACTIVE_VEHICLE_KEY);
+  const activeId = await storage.getItem(ACTIVE_VEHICLE_KEY);
   if (!activeId) return null;
   
   const vehicles = await getVehicles();
@@ -100,7 +100,7 @@ export async function getActiveVehicle(): Promise<Vehicle | null> {
 }
 
 export async function setActiveVehicle(vehicleId: string): Promise<void> {
-  await AsyncStorage.setItem(ACTIVE_VEHICLE_KEY, vehicleId);
+  await storage.setItem(ACTIVE_VEHICLE_KEY, vehicleId);
 }
 
 // Simulated sync

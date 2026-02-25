@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from './storageService';
 
 const SUBSCRIPTION_KEY = '@garageminder_subscription';
 const SYNC_SETTINGS_KEY = '@garageminder_sync_settings';
@@ -33,7 +33,7 @@ const DEFAULT_SYNC_SETTINGS: SyncSettings = {
 // Get current subscription level
 export async function getSubscriptionLevel(): Promise<SubscriptionLevel> {
   try {
-    const data = await AsyncStorage.getItem(SUBSCRIPTION_KEY);
+    const data = await storage.getItem(SUBSCRIPTION_KEY);
     if (!data) return 'free';
     
     const info: SubscriptionInfo = JSON.parse(data);
@@ -49,7 +49,7 @@ export async function setSubscriptionLevel(level: SubscriptionLevel): Promise<vo
     level,
     lastChecked: Date.now(),
   };
-  await AsyncStorage.setItem(SUBSCRIPTION_KEY, JSON.stringify(info));
+  await storage.setItem(SUBSCRIPTION_KEY, JSON.stringify(info));
 }
 
 // Check if user is paid subscriber
@@ -61,7 +61,7 @@ export async function isPaidUser(): Promise<boolean> {
 // Get sync settings
 export async function getSyncSettings(): Promise<SyncSettings> {
   try {
-    const data = await AsyncStorage.getItem(SYNC_SETTINGS_KEY);
+    const data = await storage.getItem(SYNC_SETTINGS_KEY);
     if (!data) return DEFAULT_SYNC_SETTINGS;
     
     return JSON.parse(data);
@@ -74,7 +74,7 @@ export async function getSyncSettings(): Promise<SyncSettings> {
 export async function updateSyncSettings(settings: Partial<SyncSettings>): Promise<void> {
   const current = await getSyncSettings();
   const updated = { ...current, ...settings };
-  await AsyncStorage.setItem(SYNC_SETTINGS_KEY, JSON.stringify(updated));
+  await storage.setItem(SYNC_SETTINGS_KEY, JSON.stringify(updated));
 }
 
 // Check if auto-sync is allowed

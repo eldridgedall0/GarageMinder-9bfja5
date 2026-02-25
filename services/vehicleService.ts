@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from './storageService';
 import { api } from './apiClient';
 import { Vehicle } from '../types/trip';
 
@@ -82,13 +82,13 @@ export async function fetchVehiclesFromAPI(): Promise<Vehicle[]> {
     console.log(`[VehicleService] Transformed ${vehicles.length} vehicles`);
 
     // Cache vehicles locally
-    await AsyncStorage.setItem(VEHICLES_KEY, JSON.stringify(vehicles));
+    await storage.setItem(VEHICLES_KEY, JSON.stringify(vehicles));
     console.log('[VehicleService] Vehicles cached successfully');
 
     // Set first vehicle as active if none is set
-    const activeVehicle = await AsyncStorage.getItem(ACTIVE_VEHICLE_KEY);
+    const activeVehicle = await storage.getItem(ACTIVE_VEHICLE_KEY);
     if (!activeVehicle && vehicles.length > 0) {
-      await AsyncStorage.setItem(ACTIVE_VEHICLE_KEY, vehicles[0].id);
+      await storage.setItem(ACTIVE_VEHICLE_KEY, vehicles[0].id);
       console.log('[VehicleService] Set active vehicle:', vehicles[0].id);
     }
 
@@ -127,7 +127,7 @@ export async function fetchVehiclesFromAPI(): Promise<Vehicle[]> {
  * Get vehicles from local storage (cached)
  */
 export async function getVehicles(): Promise<Vehicle[]> {
-  const data = await AsyncStorage.getItem(VEHICLES_KEY);
+  const data = await storage.getItem(VEHICLES_KEY);
   if (!data) return [];
   
   return JSON.parse(data, (key, value) => {
@@ -150,7 +150,7 @@ export async function getVehicle(vehicleId: string): Promise<Vehicle | null> {
  * Get active vehicle
  */
 export async function getActiveVehicle(): Promise<Vehicle | null> {
-  const activeId = await AsyncStorage.getItem(ACTIVE_VEHICLE_KEY);
+  const activeId = await storage.getItem(ACTIVE_VEHICLE_KEY);
   if (!activeId) return null;
   
   const vehicles = await getVehicles();
@@ -161,7 +161,7 @@ export async function getActiveVehicle(): Promise<Vehicle | null> {
  * Set active vehicle
  */
 export async function setActiveVehicle(vehicleId: string): Promise<void> {
-  await AsyncStorage.setItem(ACTIVE_VEHICLE_KEY, vehicleId);
+  await storage.setItem(ACTIVE_VEHICLE_KEY, vehicleId);
 }
 
 /**
@@ -180,7 +180,7 @@ export async function updateVehicleOdometer(vehicleId: string, newOdometer: numb
     
     if (vehicle) {
       vehicle.currentOdometer = newOdometer;
-      await AsyncStorage.setItem(VEHICLES_KEY, JSON.stringify(vehicles));
+      await storage.setItem(VEHICLES_KEY, JSON.stringify(vehicles));
     }
   } catch (error) {
     console.error('Failed to update vehicle odometer:', error);
@@ -199,6 +199,6 @@ export async function syncVehicles(): Promise<Vehicle[]> {
  * Clear local vehicle cache (on logout)
  */
 export async function clearVehicleCache(): Promise<void> {
-  await AsyncStorage.removeItem(VEHICLES_KEY);
-  await AsyncStorage.removeItem(ACTIVE_VEHICLE_KEY);
+  await storage.removeItem(VEHICLES_KEY);
+  await storage.removeItem(ACTIVE_VEHICLE_KEY);
 }

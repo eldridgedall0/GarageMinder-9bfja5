@@ -1,6 +1,6 @@
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from './storageService';
 
 const BIOMETRIC_ENABLED_KEY = '@garageminder_biometric_enabled';
 const SESSION_KEY = 'user_session';
@@ -67,7 +67,7 @@ export async function authenticateWithBiometrics(): Promise<boolean> {
 // Check if biometric is enabled
 export async function isBiometricEnabled(): Promise<boolean> {
   try {
-    const value = await AsyncStorage.getItem(BIOMETRIC_ENABLED_KEY);
+    const value = await storage.getItem(BIOMETRIC_ENABLED_KEY);
     return value === 'true';
   } catch {
     return false;
@@ -90,7 +90,7 @@ export async function enableBiometric(): Promise<boolean> {
       return false;
     }
 
-    await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
+    await storage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
     return true;
   } catch (error) {
     console.error('Error enabling biometric:', error);
@@ -100,7 +100,7 @@ export async function enableBiometric(): Promise<boolean> {
 
 // Disable biometric authentication
 export async function disableBiometric(): Promise<void> {
-  await AsyncStorage.setItem(BIOMETRIC_ENABLED_KEY, 'false');
+  await storage.setItem(BIOMETRIC_ENABLED_KEY, 'false');
 }
 
 // Store session securely
