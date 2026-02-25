@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import { startMonitoring, getBluetoothState } from '../services/bluetoothConnectionService';
 import {
   getAutoStartSettings,
   updateAutoStartSettings,
@@ -90,6 +91,58 @@ export function useAutoStart({ onTriggerStart, onTriggerStop }: UseAutoStartOpti
     setSettings(updated);
     return updated;
   }, []);
+
+  // ── Bluetooth Connection Monitoring ────────────────────────────────────────
+  useEffect(() => {
+    if (!isLoaded || !settings?.enabled) return;
+
+    const enabledMappings = mappings.filter(m => m.enabled && m.vehicleId);
+    if (enabledMappings.length === 0) return;
+
+    console.log('[AutoStart] Starting Bluetooth monitoring for', enabledMappings.length, 'devices');
+
+    // Start monitoring for connection changes
+    const cleanup = startMonitoring(
+      // On device connected
+      async (mapping) => {
+        console.log('[AutoStart] Device connected:', mapping.deviceName);
+        const currentState = await getAutoStartState();
+        
+        // If already tracking, ignore
+        if (currentState.phase === 'tracking') return;
+
+        // If in stopping phase (grace period), cancel the stop timer
+        if (currentState.phase === 'stopping') {
+          await cancelStop();
+          return;
+        }
+
+        // Transition to monitoring phase
+        const newState: AutoStartState = {
+          phase: 'monitoring',
+          connectedDeviceId: mapping.deviceId,
+          monitoringStartedAt: Date.now(),
+          stopTimerStartedAt: null,
+          triggeredVehicleId: mapping.vehicleId,
+        };
+        await setAutoStartState(newState);
+        setState(newState);
+
+        // For now, immediately start tracking (speed threshold will be handled in trip tracking)
+        await handleStartTracking(mapping.vehicleId, newState);
+      },
+      // On device disconnected
+      async (mapping) => {
+        console.log('[AutoStart] Device disconnected:', mapping.deviceName);
+        await handleBluetoothDisconnect();
+      }
+    );
+
+    return () => {
+      console.log('[AutoStart] Stopping Bluetooth monitoring');
+      cleanup();
+    };
+  }, [isLoaded, settings?.enabled, mappings]);
 
   // ── Manually trigger start (for testing AutoStart without BT) ──────────────
   const simulateBluetoothConnect = useCallback(async (vehicleId: string) => {

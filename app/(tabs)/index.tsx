@@ -33,6 +33,7 @@ export default function DashboardScreen() {
     const checkAutoStart = async () => {
       const settings = await getAutoStartSettings();
       const state = await getAutoStartState();
+      const { getBluetoothState } = await import('../../services/bluetoothConnectionService');
       const btState = await getBluetoothState();
       setAutoStartEnabled(settings.enabled);
       setAutoStartPhase(state.phase);
@@ -40,24 +41,35 @@ export default function DashboardScreen() {
     };
     checkAutoStart();
     
-    // Refresh every 10 seconds
-    const interval = setInterval(checkAutoStart, 10000);
+    // Refresh every 5 seconds
+    const interval = setInterval(checkAutoStart, 5000);
     return () => clearInterval(interval);
   }, [isAuthenticated]);
 
   const handleCheckBluetoothStatus = async () => {
     setCheckingBluetooth(true);
     try {
+      const { getBluetoothState, getConnectedMappedDevice } = await import('../../services/bluetoothConnectionService');
       const btState = await getBluetoothState();
+      const connectedDevice = await getConnectedMappedDevice();
+      
       setBluetoothState(btState);
       
+      let message = '';
       if (btState === 'on') {
-        showAlert('Bluetooth Status', 'Bluetooth is turned ON and ready');
+        message = 'Bluetooth is ON\n';
+        if (connectedDevice) {
+          message += `\nConnected to: ${connectedDevice.deviceName}\nVehicle: ${connectedDevice.vehicleName}\nAutoStart: Ready`;
+        } else {
+          message += '\nNo mapped devices connected\nWaiting for car Bluetooth...';
+        }
       } else if (btState === 'off') {
-        showAlert('Bluetooth Status', 'Bluetooth is turned OFF. Turn it on to use AutoStart');
+        message = 'Bluetooth is OFF\n\nTurn on Bluetooth to use AutoStart';
       } else {
-        showAlert('Bluetooth Status', 'Bluetooth is unavailable on this device');
+        message = 'Bluetooth is unavailable on this device';
       }
+      
+      showAlert('Bluetooth Status', message);
     } catch (error) {
       showAlert('Error', 'Failed to check Bluetooth status');
     } finally {
