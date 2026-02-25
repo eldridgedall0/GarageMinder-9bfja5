@@ -48,9 +48,24 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
       
     } catch (error: any) {
-      console.error('[LoginScreen] Login error:', error?.message || error);
-      const errorMessage = error?.message || 'Login failed. Please check your credentials and connection.';
-      showAlert('Sign In Failed', errorMessage);
+      console.error('[LoginScreen] Login error:', error);
+      
+      // Build detailed error message for development debugging
+      let errorTitle = 'Sign In Failed';
+      let errorMessage = '';
+      
+      // Add all available error information
+      if (error?.message) errorMessage += `Message: ${error.message}\n\n`;
+      if (error?.code) errorMessage += `Code: ${error.code}\n\n`;
+      if (error?.details) errorMessage += `Details: ${JSON.stringify(error.details, null, 2)}\n\n`;
+      if (error?.stack) errorMessage += `Stack Trace:\n${error.stack.split('\n').slice(0, 5).join('\n')}`;
+      
+      // Fallback if no error info available
+      if (!errorMessage) {
+        errorMessage = `Unknown error occurred\n\nError Object: ${JSON.stringify(error, null, 2)}`;
+      }
+      
+      showAlert(errorTitle, errorMessage);
       setIsLoading(false);
     }
   };
