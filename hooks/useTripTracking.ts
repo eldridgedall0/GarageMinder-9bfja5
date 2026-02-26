@@ -53,6 +53,8 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
       return;
     }
 
+    let completedTrip: Trip | null = null;
+
     try {
       const now = new Date();
       const endOdometer = trip.startOdometer + distance;
@@ -66,18 +68,19 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
         status: 'completed',
         updatedAt: now,
       };
+      completedTrip = completed;
 
       await saveTrip(completed);
       await setActiveTrip(null);
 
+      // Odometer update is best-effort — don't let failure block UI reset
       if (vehicle) {
-        await updateVehicleOdometer(vehicle.id, endOdometer);
+        try {
+          await updateVehicleOdometer(vehicle.id, endOdometer);
+        } catch (odometerError) {
+          console.error('[useTripTracking] Odometer update failed (trip still saved):', odometerError);
+        }
       }
-
-      // Reset state
-      activeTripRef.current = null;
-      setActiveTripState(null);
-      setIsTracking(false);
 
       console.log('[useTripTracking] Trip finalized:', completed.id, distance.toFixed(2), 'miles');
 
@@ -85,7 +88,14 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
       if (shouldAutoSync) {
         setTimeout(() => syncTrips([completed.id]), 30000);
       }
+    } catch (error) {
+      console.error('[useTripTracking] finalizeTrip error:', error);
     } finally {
+      // ALWAYS reset UI state — even if saveTrip or other operations fail,
+      // the trip tracking is stopped and user must not be stuck in tracking view
+      activeTripRef.current = null;
+      setActiveTripState(null);
+      setIsTracking(false);
       isFinalizingRef.current = false;
     }
   }, []); // stable — reads from refs
@@ -197,7 +207,16 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
     // Use ref value for latest distance (avoids stale gpsDistance state)
     const finalDistance = metersToMiles(gpsDistanceRef.current);
     const duration = Date.now() - currentTrip.startTime.getTime();
-    await finalizeTrip(finalDistance, duration);
+    
+    try {
+      await finalizeTrip(finalDistance, duration);
+    } catch (error) {
+      console.error('[useTripTracking] finalizeTrip failed in stopTrip:', error);
+      // Safety net: ensure UI is always reset even if finalizeTrip throws unexpectedly
+      activeTripRef.current = null;
+      setActiveTripState(null);
+      setIsTracking(false);
+    }
   };
 
   return {
