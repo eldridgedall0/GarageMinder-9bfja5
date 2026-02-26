@@ -1,5 +1,6 @@
 import { storage } from './storageService';
 import { Trip, Vehicle, TripStatus } from '../types/trip';
+import { getVehicles as getVehiclesFromVehicleService, syncVehiclesWithDiscrepancyCheck } from './vehicleService';
 
 const TRIPS_KEY = '@garageminder_trips';
 const VEHICLES_KEY = '@garageminder_vehicles';
@@ -115,10 +116,8 @@ export async function syncTrips(tripIds: string[]): Promise<{
     serverOdometer: number;
   }>;
 }> {
-  const { getVehicles, syncVehiclesWithDiscrepancyCheck } = await import('./vehicleService');
-  
   const trips = await getTrips();
-  const localVehicles = await getVehicles();
+  const localVehicles = await getVehiclesFromVehicleService();
   let syncedCount = 0;
 
   // Collect the highest odometer per vehicle from the trips being synced
