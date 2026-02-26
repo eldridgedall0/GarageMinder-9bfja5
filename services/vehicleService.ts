@@ -31,21 +31,6 @@ export async function fetchVehiclesFromAPI(): Promise<Vehicle[]> {
   try {
     console.log('[VehicleService] Fetching vehicles from API...');
     
-    // First, test basic connectivity
-    const { API_CONFIG } = await import('../constants/config');
-    console.log('[VehicleService] Testing API connectivity to:', API_CONFIG.BASE_URL);
-    
-    try {
-      const testResponse = await fetch(`${API_CONFIG.BASE_URL}/vehicles`, {
-        method: 'HEAD',
-        headers: { 'Accept': 'application/json' },
-      });
-      console.log('[VehicleService] Connectivity test response:', testResponse.status, testResponse.statusText);
-    } catch (testError: any) {
-      console.error('[VehicleService] Connectivity test failed:', testError?.message);
-      throw new Error(`Cannot reach API server at ${API_CONFIG.BASE_URL}. Error: ${testError?.message}`);
-    }
-    
     // API response structure: { success: true, data: [...vehicles] }
     // The api.get() method already extracts the 'data' field
     const apiVehicles = await api.get<ApiVehicle[]>('/vehicles');
