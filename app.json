@@ -80,14 +80,6 @@
         {
           "faceIDPermission": "GarageMinder uses Face ID to secure your account"
         }
-      ],
-      [
-        "react-native-ble-manager",
-        {
-          "isBackgroundEnabled": true,
-          "neverForLocation": false,
-          "showAlert": false
-        }
       ]
     ],
     "experiments": {
