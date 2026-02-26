@@ -8,7 +8,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../hooks/useAuth';
 import { useAlert } from '@/template';
-import { updateVehicleOdometer } from '../../services/vehicleService';
+import { updateVehicleOdometer, syncVehicles } from '../../services/vehicleService';
 import { Vehicle } from '../../types/trip';
 
 export default function VehiclesScreen() {
@@ -25,6 +25,7 @@ export default function VehiclesScreen() {
     setNewOdometer(Math.round(vehicle.currentOdometer).toString());
   };
 
+  // Save odometer — LOCAL ONLY, instant. No API call.
   const handleSaveOdometer = async (vehicleId: string) => {
     const odometerValue = Math.round(parseFloat(newOdometer));
     if (isNaN(odometerValue) || odometerValue < 0) {
@@ -34,15 +35,12 @@ export default function VehiclesScreen() {
 
     setSaving(true);
     try {
+      // Save to local storage (AsyncStorage)
       await updateVehicleOdometer(vehicleId, odometerValue);
-      // Immediately update the UI state so the user sees the change
+      // Update React state for immediate UI feedback
       updateVehicleOdometerInState(vehicleId, odometerValue);
       setEditingVehicleId(null);
-      showAlert('Success', 'Odometer updated successfully');
-      // Reload from API in background to ensure sync (don't await / don't block UI)
-      reloadVehicles().catch(err => 
-        console.warn('[VehiclesScreen] Background reload failed:', err)
-      );
+      showAlert('Odometer Updated', 'Tap the sync button to push changes to your account.');
     } catch (error: any) {
       console.error('[VehiclesScreen] Save odometer error:', error);
       showAlert('Error', error?.message || 'Failed to update odometer');
@@ -51,14 +49,18 @@ export default function VehiclesScreen() {
     }
   };
 
+  // Sync — pushes local odometers to API, then pulls fresh data back
   const handleSyncAll = async () => {
     setSyncing(true);
     try {
+      // syncVehicles() does: POST /sync/push → GET /vehicles → save to local
+      const freshVehicles = await syncVehicles();
+      // Update React state with server data
       await reloadVehicles();
-      showAlert('Success', 'Vehicles synced successfully');
+      showAlert('Synced', `${freshVehicles.length} vehicle${freshVehicles.length !== 1 ? 's' : ''} synced with your account.`);
     } catch (error: any) {
       console.error('[VehiclesScreen] Sync error:', error);
-      showAlert('Error', error?.message || 'Failed to sync vehicles');
+      showAlert('Sync Failed', error?.message || 'Failed to sync vehicles. Check your connection and try again.');
     } finally {
       setSyncing(false);
     }

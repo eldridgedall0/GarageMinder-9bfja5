@@ -50,6 +50,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(cachedUser);
         setIsAuthenticated(true);
         
+        // Load vehicles from local cache (no API call)
+        const { getVehicles } = await import('../services/vehicleService');
+        const cachedVehicles = await getVehicles();
+        setVehicles(cachedVehicles);
+        console.log(`[AuthContext] Loaded ${cachedVehicles.length} vehicles from local cache`);
+        
         // Verify token in background
         const verifiedUser = await authService.verifyToken();
         if (verifiedUser) {
@@ -58,6 +64,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Token invalid, clear state
           setUser(null);
           setIsAuthenticated(false);
+          setVehicles([]);
         }
       } else {
         setUser(null);
@@ -162,21 +169,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  // Reload vehicles from local storage into React state
+  // This does NOT call the API — it reads from AsyncStorage
   const reloadVehicles = async () => {
+    setVehiclesLoading(true);
+    setVehicleError(null);
+    try {
+      const { getVehicles } = await import('../services/vehicleService');
+      const cachedVehicles = await getVehicles();
+      setVehicles(cachedVehicles);
+      console.log(`[AuthContext] Reloaded ${cachedVehicles.length} vehicles from local storage`);
+    } catch (error: any) {
+      console.error('[AuthContext] Failed to reload vehicles from storage:', error);
+      setVehicleError(error?.message || 'Failed to load vehicles');
+      throw error;
+    } finally {
+      setVehiclesLoading(false);
+    }
+  };
+
+  // Pull fresh vehicles from API and update local storage + React state
+  // Called ONLY on login or after explicit sync
+  const pullVehiclesFromAPI = async () => {
     setVehiclesLoading(true);
     setVehicleError(null);
     try {
       const freshVehicles = await fetchVehiclesFromAPI();
       setVehicles(freshVehicles);
-      console.log(`[AuthContext] Reloaded ${freshVehicles.length} vehicles from API`);
+      console.log(`[AuthContext] Pulled ${freshVehicles.length} vehicles from API`);
     } catch (error: any) {
-      console.error('[AuthContext] Failed to reload vehicles:', error);
+      console.error('[AuthContext] Failed to pull vehicles from API:', error);
       
-      // Build detailed error message for development
       let detailedError = `Error: ${error?.message || 'Unknown error'}\n`;
       if (error?.code) detailedError += `Code: ${error.code}\n`;
       if (error?.details) detailedError += `Details: ${JSON.stringify(error.details)}\n`;
-      if (error?.stack) detailedError += `Stack: ${error.stack.split('\n').slice(0, 3).join('\n')}`;
       
       setVehicleError(detailedError);
       throw error;

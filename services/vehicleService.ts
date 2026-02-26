@@ -24,92 +24,12 @@ interface ApiVehicle {
   registration_expiry: string | null;
 }
 
-/**
- * Fetch vehicles from GarageMinder API
- */
-export async function fetchVehiclesFromAPI(): Promise<Vehicle[]> {
-  try {
-    console.log('[VehicleService] Fetching vehicles from API...');
-    
-    // API response structure: { success: true, data: [...vehicles] }
-    // The api.get() method already extracts the 'data' field
-    const apiVehicles = await api.get<ApiVehicle[]>('/vehicles');
-    
-    console.log('[VehicleService] API response:', apiVehicles);
-    
-    // Check if response is an array
-    if (!Array.isArray(apiVehicles)) {
-      console.error('[VehicleService] Invalid API response - expected array, got:', typeof apiVehicles);
-      throw new Error('Invalid vehicles data received from server');
-    }
-    
-    console.log(`[VehicleService] Received ${apiVehicles.length} vehicles from API`);
-    
-    // Transform API vehicles to app Vehicle format
-    const vehicles: Vehicle[] = apiVehicles.map(v => {
-      console.log('[VehicleService] Processing vehicle:', v.id, v.year, v.make, v.model);
-      return {
-        id: v.id,
-        year: v.year,
-        make: v.make,
-        model: v.model,
-        trim: v.engine || undefined,
-        currentOdometer: v.odometer,
-        userId: v.user_id,
-        displayName: v.display_name || `${v.year} ${v.make} ${v.model}`,
-        vin: v.vin || undefined,
-        plate: v.plate || undefined,
-        photoPath: v.photo_path || undefined,
-        createdAt: new Date(),
-      };
-    });
-
-    console.log(`[VehicleService] Transformed ${vehicles.length} vehicles`);
-
-    // Cache vehicles locally
-    await storage.setItem(VEHICLES_KEY, JSON.stringify(vehicles));
-    console.log('[VehicleService] Vehicles cached successfully');
-
-    // Set first vehicle as active if none is set
-    const activeVehicle = await storage.getItem(ACTIVE_VEHICLE_KEY);
-    if (!activeVehicle && vehicles.length > 0) {
-      await storage.setItem(ACTIVE_VEHICLE_KEY, vehicles[0].id);
-      console.log('[VehicleService] Set active vehicle:', vehicles[0].id);
-    }
-
-    return vehicles;
-  } catch (error: any) {
-    console.error('[VehicleService] Failed to fetch vehicles from API');
-    console.error('[VehicleService] Error type:', error?.name);
-    console.error('[VehicleService] Error code:', error?.code);
-    console.error('[VehicleService] Error message:', error?.message);
-    console.error('[VehicleService] Error details:', error?.details);
-    console.error('[VehicleService] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-    
-    // Build detailed error message for development debugging
-    let errorMsg = `Failed to load vehicles.\n\n`;
-    errorMsg += `Error Type: ${error?.name || 'Unknown'}\n`;
-    
-    if (error?.code) errorMsg += `Code: ${error.code}\n`;
-    if (error?.message) errorMsg += `Message: ${error.message}\n`;
-    if (error?.details) errorMsg += `Details: ${JSON.stringify(error.details)}\n`;
-    
-    // Add stack trace (first 3 lines)
-    if (error?.stack) {
-      const stackLines = error.stack.split('\n').slice(0, 3).join('\n');
-      errorMsg += `\nStack:\n${stackLines}`;
-    }
-    
-    // Include the API URL being called
-    const { API_CONFIG } = await import('../constants/config');
-    errorMsg += `\n\nAPI URL: ${API_CONFIG.BASE_URL}/vehicles`;
-    
-    throw new Error(errorMsg);
-  }
-}
+// ============================================================================
+// LOCAL STORAGE OPERATIONS (no API calls — instant, offline-safe)
+// ============================================================================
 
 /**
- * Get vehicles from local storage (cached)
+ * Get vehicles from local storage (the ONLY read source for UI)
  */
 export async function getVehicles(): Promise<Vehicle[]> {
   const data = await storage.getItem(VEHICLES_KEY);
@@ -124,7 +44,7 @@ export async function getVehicles(): Promise<Vehicle[]> {
 }
 
 /**
- * Get a single vehicle by ID
+ * Get a single vehicle by ID from local storage
  */
 export async function getVehicle(vehicleId: string): Promise<Vehicle | null> {
   const vehicles = await getVehicles();
@@ -132,7 +52,7 @@ export async function getVehicle(vehicleId: string): Promise<Vehicle | null> {
 }
 
 /**
- * Get active vehicle
+ * Get active vehicle from local storage
  */
 export async function getActiveVehicle(): Promise<Vehicle | null> {
   const activeId = await storage.getItem(ACTIVE_VEHICLE_KEY);
@@ -143,41 +63,31 @@ export async function getActiveVehicle(): Promise<Vehicle | null> {
 }
 
 /**
- * Set active vehicle
+ * Set active vehicle (local only)
  */
 export async function setActiveVehicle(vehicleId: string): Promise<void> {
   await storage.setItem(ACTIVE_VEHICLE_KEY, vehicleId);
 }
 
 /**
- * Update vehicle odometer reading via API
+ * Update vehicle odometer — LOCAL ONLY, no API call.
+ * The API is updated later when the user explicitly syncs.
  */
 export async function updateVehicleOdometer(vehicleId: string, newOdometer: number): Promise<void> {
-  try {
-    // Update on server
-    await api.put(`/vehicles/${vehicleId}/odometer`, {
-      odometer: newOdometer,
-    });
-
-    // Update local cache
-    const vehicles = await getVehicles();
-    const vehicle = vehicles.find(v => v.id === vehicleId);
-    
-    if (vehicle) {
-      vehicle.currentOdometer = newOdometer;
-      await storage.setItem(VEHICLES_KEY, JSON.stringify(vehicles));
-    }
-  } catch (error) {
-    console.error('Failed to update vehicle odometer:', error);
-    throw error;
+  const odometerInt = Math.round(newOdometer);
+  
+  console.log(`[VehicleService] Updating odometer locally for ${vehicleId} to ${odometerInt}`);
+  
+  const vehicles = await getVehicles();
+  const vehicle = vehicles.find(v => v.id === vehicleId);
+  
+  if (!vehicle) {
+    throw new Error('Vehicle not found');
   }
-}
 
-/**
- * Sync vehicles - fetch latest from server and update local cache
- */
-export async function syncVehicles(): Promise<Vehicle[]> {
-  return await fetchVehiclesFromAPI();
+  vehicle.currentOdometer = odometerInt;
+  await storage.setItem(VEHICLES_KEY, JSON.stringify(vehicles));
+  console.log(`[VehicleService] Local odometer updated: ${vehicleId} → ${odometerInt}`);
 }
 
 /**
@@ -186,4 +96,109 @@ export async function syncVehicles(): Promise<Vehicle[]> {
 export async function clearVehicleCache(): Promise<void> {
   await storage.removeItem(VEHICLES_KEY);
   await storage.removeItem(ACTIVE_VEHICLE_KEY);
+}
+
+// ============================================================================
+// API OPERATIONS (only called on login or explicit sync)
+// ============================================================================
+
+/**
+ * Fetch vehicles from GarageMinder API and save to local storage.
+ * Called ONLY on:
+ *  - Login (to pull initial vehicle list)
+ *  - Explicit sync (after pushing local data first)
+ */
+export async function fetchVehiclesFromAPI(): Promise<Vehicle[]> {
+  try {
+    console.log('[VehicleService] Fetching vehicles from API...');
+    
+    const apiVehicles = await api.get<ApiVehicle[]>('/vehicles');
+    
+    if (!Array.isArray(apiVehicles)) {
+      console.error('[VehicleService] Invalid API response - expected array, got:', typeof apiVehicles);
+      throw new Error('Invalid vehicles data received from server');
+    }
+    
+    console.log(`[VehicleService] Received ${apiVehicles.length} vehicles from API`);
+    
+    // Transform API vehicles to app Vehicle format
+    const vehicles: Vehicle[] = apiVehicles.map(v => ({
+      id: v.id,
+      year: v.year,
+      make: v.make,
+      model: v.model,
+      trim: v.engine || undefined,
+      currentOdometer: v.odometer,
+      userId: v.user_id,
+      displayName: v.display_name || `${v.year} ${v.make} ${v.model}`,
+      vin: v.vin || undefined,
+      plate: v.plate || undefined,
+      photoPath: v.photo_path || undefined,
+      createdAt: new Date(),
+    }));
+
+    // Save to local storage
+    await storage.setItem(VEHICLES_KEY, JSON.stringify(vehicles));
+    console.log('[VehicleService] Vehicles cached locally');
+
+    // Set first vehicle as active if none is set
+    const activeVehicle = await storage.getItem(ACTIVE_VEHICLE_KEY);
+    if (!activeVehicle && vehicles.length > 0) {
+      await storage.setItem(ACTIVE_VEHICLE_KEY, vehicles[0].id);
+    }
+
+    return vehicles;
+  } catch (error: any) {
+    console.error('[VehicleService] Failed to fetch vehicles from API:', error?.message);
+    
+    let errorMsg = `Failed to load vehicles.\n\n`;
+    if (error?.code) errorMsg += `Code: ${error.code}\n`;
+    if (error?.message) errorMsg += `Message: ${error.message}\n`;
+    
+    const { API_CONFIG } = await import('../constants/config');
+    errorMsg += `\nAPI URL: ${API_CONFIG.BASE_URL}/vehicles`;
+    
+    throw new Error(errorMsg);
+  }
+}
+
+/**
+ * SYNC: Push local odometer values to server, then pull fresh data back.
+ * This is the ONLY time we talk to the API after login.
+ * 
+ * Flow:
+ *  1. Read local vehicles
+ *  2. POST /sync/push with all odometer values  
+ *  3. GET /vehicles to pull any changes from web app
+ *  4. Save pulled data to local storage
+ *  5. Return merged vehicles
+ */
+export async function syncVehicles(): Promise<Vehicle[]> {
+  // Step 1: Read local data
+  const localVehicles = await getVehicles();
+  
+  // Step 2: Push local odometers to server
+  if (localVehicles.length > 0) {
+    try {
+      const pushPayload = {
+        vehicles: localVehicles.map(v => ({
+          id: v.id,
+          odometer: Math.round(v.currentOdometer),
+        })),
+      };
+      
+      console.log('[VehicleService] Sync push:', pushPayload.vehicles.length, 'vehicles');
+      const pushResult = await api.post('/sync/push', pushPayload);
+      console.log('[VehicleService] Sync push result:', pushResult);
+    } catch (pushError: any) {
+      console.error('[VehicleService] Sync push failed:', pushError?.message);
+      // Don't throw — still try to pull fresh data
+    }
+  }
+
+  // Step 3 & 4: Pull fresh data from server (also saves to local storage)
+  const freshVehicles = await fetchVehiclesFromAPI();
+  
+  console.log(`[VehicleService] Sync complete: ${freshVehicles.length} vehicles`);
+  return freshVehicles;
 }
