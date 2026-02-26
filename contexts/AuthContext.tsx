@@ -16,6 +16,7 @@ interface AuthContextType {
   vehiclesLoading: boolean;
   vehicleError: string | null;
   reloadVehicles: () => Promise<void>;
+  updateVehicleOdometerInState: (vehicleId: string, newOdometer: number) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -184,6 +185,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const updateVehicleOdometerInState = (vehicleId: string, newOdometer: number) => {
+    setVehicles(prev => prev.map(v => 
+      v.id === vehicleId ? { ...v, currentOdometer: newOdometer } : v
+    ));
+    console.log(`[AuthContext] Updated vehicle ${vehicleId} odometer to ${newOdometer} in state`);
+  };
+
   const value: AuthContextType = {
     user,
     isLoading,
@@ -196,6 +204,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     vehiclesLoading,
     vehicleError,
     reloadVehicles,
+    updateVehicleOdometerInState,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

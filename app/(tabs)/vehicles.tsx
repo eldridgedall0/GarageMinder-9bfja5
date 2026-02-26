@@ -13,31 +13,41 @@ import { Vehicle } from '../../types/trip';
 
 export default function VehiclesScreen() {
   const insets = useSafeAreaInsets();
-  const { vehicles, vehiclesLoading, reloadVehicles } = useAuth();
+  const { vehicles, vehiclesLoading, reloadVehicles, updateVehicleOdometerInState } = useAuth();
   const { showAlert } = useAlert();
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
   const [newOdometer, setNewOdometer] = useState('');
   const [syncing, setSyncing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const handleEditOdometer = (vehicle: Vehicle) => {
     setEditingVehicleId(vehicle.id);
-    setNewOdometer(vehicle.currentOdometer.toString());
+    setNewOdometer(Math.round(vehicle.currentOdometer).toString());
   };
 
   const handleSaveOdometer = async (vehicleId: string) => {
-    const odometerValue = parseFloat(newOdometer);
+    const odometerValue = Math.round(parseFloat(newOdometer));
     if (isNaN(odometerValue) || odometerValue < 0) {
       showAlert('Invalid Odometer', 'Please enter a valid odometer reading');
       return;
     }
 
+    setSaving(true);
     try {
       await updateVehicleOdometer(vehicleId, odometerValue);
-      await reloadVehicles();
+      // Immediately update the UI state so the user sees the change
+      updateVehicleOdometerInState(vehicleId, odometerValue);
       setEditingVehicleId(null);
       showAlert('Success', 'Odometer updated successfully');
+      // Reload from API in background to ensure sync (don't await / don't block UI)
+      reloadVehicles().catch(err => 
+        console.warn('[VehiclesScreen] Background reload failed:', err)
+      );
     } catch (error: any) {
+      console.error('[VehiclesScreen] Save odometer error:', error);
       showAlert('Error', error?.message || 'Failed to update odometer');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -47,6 +57,7 @@ export default function VehiclesScreen() {
       await reloadVehicles();
       showAlert('Success', 'Vehicles synced successfully');
     } catch (error: any) {
+      console.error('[VehiclesScreen] Sync error:', error);
       showAlert('Error', error?.message || 'Failed to sync vehicles');
     } finally {
       setSyncing(false);
@@ -164,10 +175,11 @@ export default function VehiclesScreen() {
                           <Text style={styles.cancelButtonText}>Cancel</Text>
                         </Pressable>
                         <Pressable
-                          style={[styles.editActionButton, styles.saveButton]}
+                          style={[styles.editActionButton, styles.saveButton, saving && { opacity: 0.5 }]}
                           onPress={() => handleSaveOdometer(vehicle.id)}
+                          disabled={saving}
                         >
-                          <Text style={styles.saveButtonText}>Save</Text>
+                          <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
                         </Pressable>
                       </View>
                     </View>
