@@ -128,6 +128,7 @@
     "expo-manifests": "~0.16.6",
     "expo-store-review": "~8.1.5",
     "expo-task-manager": "~13.1.5",
+    "react-native-ble-manager": "^11.5.3",
     "react-native-fade-in-image": "^1.6.1",
     "react-native-infinite-scroll-view": "^0.4.5",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",

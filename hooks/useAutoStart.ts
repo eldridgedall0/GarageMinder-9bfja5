@@ -4,15 +4,18 @@
  * Manages the AutoStart state machine:
  * IDLE → MONITORING → TRACKING → STOPPING → IDLE
  *
- * Polls every 15 seconds (when app is foregrounded) to check
- * if any mapped Bluetooth device is connected.
- *
- * In the background, expo-task-manager handles the polling.
+ * Uses the native ExpoBluetoothClassic module for real-time
+ * Classic Bluetooth connection events (ACL_CONNECTED/DISCONNECTED).
+ * Falls back to BLE polling if native module is unavailable.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
-import { startMonitoring, getBluetoothState } from '../services/bluetoothConnectionService';
+import {
+  startMonitoring,
+  getBluetoothState,
+  isNativeBluetoothAvailable,
+} from '../services/bluetoothConnectionService';
 import {
   getAutoStartSettings,
   updateAutoStartSettings,
@@ -43,13 +46,15 @@ export function useAutoStart({ onTriggerStart, onTriggerStop }: UseAutoStartOpti
   const [mappings, setMappings] = useState<BluetoothDeviceMapping[]>([]);
   const [state, setState] = useState<AutoStartState | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isNativeAvailable, setIsNativeAvailable] = useState(false);
 
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   // ── Load settings on mount ──────────────────────────────────────────────────
   useEffect(() => {
     loadAll();
+    setIsNativeAvailable(isNativeBluetoothAvailable());
   }, []);
 
   // ── Re-check when app comes to foreground ──────────────────────────────────
@@ -94,30 +99,39 @@ export function useAutoStart({ onTriggerStart, onTriggerStop }: UseAutoStartOpti
 
   // ── Bluetooth Connection Monitoring ────────────────────────────────────────
   useEffect(() => {
-    if (!isLoaded || !settings?.enabled) return;
+    if (!isLoaded || !settings?.enabled) {
+      // Clean up if disabled
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+      return;
+    }
 
     const enabledMappings = mappings.filter(m => m.enabled && m.vehicleId);
     if (enabledMappings.length === 0) return;
 
-    console.log('[AutoStart] Starting Bluetooth monitoring for', enabledMappings.length, 'devices');
+    const nativeLabel = isNativeAvailable ? 'Native Classic BT' : 'BLE fallback';
+    console.log(`[AutoStart] Starting monitoring (${nativeLabel}) for ${enabledMappings.length} device(s)`);
 
-    // Start monitoring for connection changes
+    // Start monitoring — uses native ACL events or BLE polling
     const cleanup = startMonitoring(
       // On device connected
       async (mapping) => {
-        console.log('[AutoStart] Device connected:', mapping.deviceName);
+        console.log('[AutoStart] Device connected:', mapping.deviceName, '→', mapping.vehicleName);
         const currentState = await getAutoStartState();
-        
+
         // If already tracking, ignore
         if (currentState.phase === 'tracking') return;
 
         // If in stopping phase (grace period), cancel the stop timer
         if (currentState.phase === 'stopping') {
+          console.log('[AutoStart] Reconnected during stop grace period — cancelling stop');
           await cancelStop();
           return;
         }
 
-        // Transition to monitoring phase
+        // Transition to monitoring → tracking
         const newState: AutoStartState = {
           phase: 'monitoring',
           connectedDeviceId: mapping.deviceId,
@@ -128,7 +142,7 @@ export function useAutoStart({ onTriggerStart, onTriggerStop }: UseAutoStartOpti
         await setAutoStartState(newState);
         setState(newState);
 
-        // For now, immediately start tracking (speed threshold will be handled in trip tracking)
+        // Start tracking (speed threshold handled in trip tracking)
         await handleStartTracking(mapping.vehicleId, newState);
       },
       // On device disconnected
@@ -138,11 +152,23 @@ export function useAutoStart({ onTriggerStart, onTriggerStop }: UseAutoStartOpti
       }
     );
 
+    cleanupRef.current = cleanup;
+
     return () => {
-      console.log('[AutoStart] Stopping Bluetooth monitoring');
+      console.log('[AutoStart] Stopping monitoring');
       cleanup();
+      cleanupRef.current = null;
     };
   }, [isLoaded, settings?.enabled, mappings]);
+
+  // Clean up stop timer on unmount
+  useEffect(() => {
+    return () => {
+      if (stopTimerRef.current) {
+        clearTimeout(stopTimerRef.current);
+      }
+    };
+  }, []);
 
   // ── Manually trigger start (for testing AutoStart without BT) ──────────────
   const simulateBluetoothConnect = useCallback(async (vehicleId: string) => {
@@ -155,7 +181,6 @@ export function useAutoStart({ onTriggerStart, onTriggerStop }: UseAutoStartOpti
     };
     await setAutoStartState(newState);
     setState(newState);
-    // Immediately transition to tracking (simulated — no speed threshold needed for test)
     await handleStartTracking(vehicleId, newState);
   }, [onTriggerStart]);
 
@@ -172,14 +197,21 @@ export function useAutoStart({ onTriggerStart, onTriggerStop }: UseAutoStartOpti
     };
     await setAutoStartState(newState);
     setState(newState);
-    await onTriggerStart(vehicleId);
+
+    try {
+      await onTriggerStart(vehicleId);
+    } catch (error) {
+      console.error('[AutoStart] Failed to start trip:', error);
+      await resetAutoStartState();
+      setState({ ...DEFAULT_RESET_STATE });
+    }
   };
 
   const handleBluetoothDisconnect = async () => {
     const currentState = await getAutoStartState();
     if (currentState.phase !== 'tracking') return;
 
-    const settings = await getAutoStartSettings();
+    const currentSettings = await getAutoStartSettings();
     const stopState: AutoStartState = {
       ...currentState,
       phase: 'stopping',
@@ -188,27 +220,37 @@ export function useAutoStart({ onTriggerStart, onTriggerStop }: UseAutoStartOpti
     await setAutoStartState(stopState);
     setState(stopState);
 
+    console.log(`[AutoStart] Starting ${currentSettings.stopTimeoutMinutes}min stop grace period`);
+
     // Start the stop grace period timer
     if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
     stopTimerRef.current = setTimeout(async () => {
       await finalizeStop();
-    }, settings.stopTimeoutMinutes * 60 * 1000);
+    }, currentSettings.stopTimeoutMinutes * 60 * 1000);
   };
 
   const finalizeStop = async () => {
-    await onTriggerStop();
+    console.log('[AutoStart] Grace period expired — stopping trip');
+    try {
+      await onTriggerStop();
+    } catch (error) {
+      console.error('[AutoStart] Failed to stop trip:', error);
+    }
     await resetAutoStartState();
     setState({ ...DEFAULT_RESET_STATE });
   };
 
   const cancelStop = async () => {
-    // BT reconnected during grace period — cancel stop timer
     if (stopTimerRef.current) {
       clearTimeout(stopTimerRef.current);
       stopTimerRef.current = null;
     }
     const currentState = await getAutoStartState();
-    const resumeState: AutoStartState = { ...currentState, phase: 'tracking', stopTimerStartedAt: null };
+    const resumeState: AutoStartState = {
+      ...currentState,
+      phase: 'tracking',
+      stopTimerStartedAt: null,
+    };
     await setAutoStartState(resumeState);
     setState(resumeState);
   };
@@ -218,6 +260,7 @@ export function useAutoStart({ onTriggerStart, onTriggerStop }: UseAutoStartOpti
     mappings,
     state,
     isLoaded,
+    isNativeAvailable,
     updateSettings,
     refreshSettings,
     refreshMappings,

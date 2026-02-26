@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   FlatList,
   ActivityIndicator,
   TextInput,
+  SectionList,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +17,9 @@ import {
   scanForBluetoothDevices,
   stopBluetoothScan,
   createDeviceIdFromName,
+  getKnownDevices,
   type ScannedDevice,
+  type DiscoveredDevice,
 } from '../../services/bluetoothService';
 
 interface BluetoothDevicePickerModalProps {
@@ -34,11 +37,39 @@ export function BluetoothDevicePickerModal({
 }: BluetoothDevicePickerModalProps) {
   const insets = useSafeAreaInsets();
   const [isScanning, setIsScanning] = useState(false);
+  const [isLoadingPaired, setIsLoadingPaired] = useState(false);
+  const [pairedDevices, setPairedDevices] = useState<DiscoveredDevice[]>([]);
   const [scannedDevices, setScannedDevices] = useState<ScannedDevice[]>([]);
   const [scanError, setScanError] = useState<string | null>(null);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualName, setManualName] = useState('');
-  const [scanProgress, setScanProgress] = useState(0); // 0-100
+  const [scanProgress, setScanProgress] = useState(0);
+
+  // Load paired devices when modal opens
+  useEffect(() => {
+    if (visible) {
+      loadPairedDevices();
+    } else {
+      // Reset state on close
+      setPairedDevices([]);
+      setScannedDevices([]);
+      setScanError(null);
+      setShowManualEntry(false);
+      setManualName('');
+    }
+  }, [visible]);
+
+  const loadPairedDevices = async () => {
+    setIsLoadingPaired(true);
+    try {
+      const devices = await getKnownDevices();
+      setPairedDevices(devices);
+    } catch (error) {
+      console.error('Failed to load paired devices:', error);
+    } finally {
+      setIsLoadingPaired(false);
+    }
+  };
 
   const startScan = useCallback(async () => {
     setScannedDevices([]);
@@ -58,7 +89,7 @@ export function BluetoothDevicePickerModal({
         });
       }, 8);
     } catch (error: any) {
-      setScanError(error?.message || 'Bluetooth scan failed. Make sure Bluetooth is on and try again.');
+      setScanError(error?.message || 'Bluetooth scan failed. Try using paired devices above or add manually.');
     } finally {
       clearInterval(progressInterval);
       setScanProgress(100);
@@ -67,12 +98,8 @@ export function BluetoothDevicePickerModal({
   }, []);
 
   const handleClose = () => {
-    stopBluetoothScan(); // fire and forget
+    stopBluetoothScan();
     setIsScanning(false);
-    setScannedDevices([]);
-    setScanError(null);
-    setShowManualEntry(false);
-    setManualName('');
     onClose();
   };
 
@@ -90,26 +117,41 @@ export function BluetoothDevicePickerModal({
     });
   };
 
-  const renderDevice = ({ item }: { item: ScannedDevice }) => {
-    const alreadyAdded = alreadyMappedIds.includes(item.id);
+  const isAlreadyAdded = (deviceId: string, deviceName?: string) => {
+    if (alreadyMappedIds.includes(deviceId)) return true;
+    // Also check by name for manually-added devices
+    if (deviceName) {
+      const manualId = createDeviceIdFromName(deviceName);
+      return alreadyMappedIds.includes(manualId);
+    }
+    return false;
+  };
+
+  const renderPairedDevice = (item: DiscoveredDevice) => {
+    const alreadyAdded = item.isAlreadyMapped || isAlreadyAdded(item.id, item.name);
+    const typeLabel = item.deviceType === 'classic' ? 'Classic BT' :
+                      item.deviceType === 'ble' ? 'BLE' :
+                      item.deviceType === 'dual' ? 'Classic + BLE' : '';
     return (
       <Pressable
-        style={[
-          styles.deviceRow,
-          alreadyAdded && styles.deviceRowDisabled,
-        ]}
+        key={item.id}
+        style={[styles.deviceRow, alreadyAdded && styles.deviceRowDisabled]}
         onPress={() => !alreadyAdded && handleSelectDevice({ id: item.id, name: item.name })}
         disabled={alreadyAdded}
       >
         <View style={styles.deviceRowIcon}>
-          <MaterialIcons name="bluetooth" size={22} color={alreadyAdded ? theme.colors.textSubtle : theme.colors.primary} />
+          <MaterialIcons
+            name="bluetooth"
+            size={22}
+            color={alreadyAdded ? theme.colors.textSubtle : theme.colors.primary}
+          />
         </View>
         <View style={styles.deviceRowInfo}>
           <Text style={[styles.deviceRowName, alreadyAdded && styles.deviceRowNameDisabled]}>
             {item.name}
           </Text>
           <Text style={styles.deviceRowId}>
-            {alreadyAdded ? 'Already added' : item.id}
+            {alreadyAdded ? 'Already added' : typeLabel}
           </Text>
         </View>
         {!alreadyAdded && (
@@ -121,6 +163,41 @@ export function BluetoothDevicePickerModal({
       </Pressable>
     );
   };
+
+  const renderScannedDevice = ({ item }: { item: ScannedDevice }) => {
+    const alreadyAdded = alreadyMappedIds.includes(item.id);
+    return (
+      <Pressable
+        style={[styles.deviceRow, alreadyAdded && styles.deviceRowDisabled]}
+        onPress={() => !alreadyAdded && handleSelectDevice({ id: item.id, name: item.name })}
+        disabled={alreadyAdded}
+      >
+        <View style={styles.deviceRowIcon}>
+          <MaterialIcons
+            name="bluetooth-searching"
+            size={22}
+            color={alreadyAdded ? theme.colors.textSubtle : '#4FC3F7'}
+          />
+        </View>
+        <View style={styles.deviceRowInfo}>
+          <Text style={[styles.deviceRowName, alreadyAdded && styles.deviceRowNameDisabled]}>
+            {item.name}
+          </Text>
+          <Text style={styles.deviceRowId}>
+            {alreadyAdded ? 'Already added' : `BLE · Signal: ${item.rssi} dBm`}
+          </Text>
+        </View>
+        {!alreadyAdded && (
+          <MaterialIcons name="add-circle-outline" size={22} color={theme.colors.primary} />
+        )}
+        {alreadyAdded && (
+          <MaterialIcons name="check-circle" size={22} color={theme.colors.textSubtle} />
+        )}
+      </Pressable>
+    );
+  };
+
+  const hasPairedDevices = pairedDevices.length > 0 && !pairedDevices[0]?.isManuallyAdded;
 
   return (
     <Modal
@@ -139,25 +216,53 @@ export function BluetoothDevicePickerModal({
         </View>
 
         <Text style={styles.subtitle}>
-          Select your car's Bluetooth from the list below, or add it manually if it doesn't appear.
+          {hasPairedDevices
+            ? "Select your car's Bluetooth from your paired devices, or scan for nearby BLE devices."
+            : "Select your car's Bluetooth from the list below, or add it manually if it doesn't appear."}
         </Text>
 
-        {/* Scan Button */}
+        {/* ── Paired Devices Section ──────────────────────────────────── */}
+        {isLoadingPaired && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <Text style={styles.loadingText}>Loading paired devices...</Text>
+          </View>
+        )}
+
+        {hasPairedDevices && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <MaterialIcons name="bluetooth-connected" size={18} color={theme.colors.primary} />
+              <Text style={styles.sectionTitle}>Paired Devices</Text>
+              <View style={styles.sectionBadge}>
+                <Text style={styles.sectionBadgeText}>{pairedDevices.length}</Text>
+              </View>
+            </View>
+            <Text style={styles.sectionHint}>
+              These are Bluetooth devices paired in your phone's settings
+            </Text>
+            <View style={styles.deviceListContainer}>
+              {pairedDevices.map(renderPairedDevice)}
+            </View>
+          </View>
+        )}
+
+        {/* ── BLE Scan Section ────────────────────────────────────────── */}
         {!isScanning && scannedDevices.length === 0 && !scanError && (
           <Pressable style={styles.scanButton} onPress={startScan}>
             <MaterialIcons name="bluetooth-searching" size={24} color="#FFFFFF" />
-            <Text style={styles.scanButtonText}>Scan for Devices</Text>
+            <Text style={styles.scanButtonText}>
+              {hasPairedDevices ? 'Scan for BLE Devices' : 'Scan for Devices'}
+            </Text>
           </Pressable>
         )}
 
-        {/* Scanning State */}
         {isScanning && (
           <View style={styles.scanningContainer}>
             <View style={styles.scanningHeader}>
               <ActivityIndicator size="small" color={theme.colors.primary} />
               <Text style={styles.scanningText}>Scanning for Bluetooth devices...</Text>
             </View>
-            {/* Progress bar */}
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${scanProgress}%` }]} />
             </View>
@@ -167,23 +272,23 @@ export function BluetoothDevicePickerModal({
           </View>
         )}
 
-        {/* Scan Error */}
         {scanError && (
           <View style={styles.errorContainer}>
-            <MaterialIcons name="error-outline" size={24} color={theme.colors.error || '#FF4444'} />
+            <MaterialIcons name="info-outline" size={24} color={theme.colors.textSecondary} />
             <Text style={styles.errorText}>{scanError}</Text>
-            <Pressable style={styles.retryButton} onPress={startScan}>
-              <Text style={styles.retryButtonText}>Try Again</Text>
-            </Pressable>
+            {!hasPairedDevices && (
+              <Pressable style={styles.retryButton} onPress={startScan}>
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </Pressable>
+            )}
           </View>
         )}
 
-        {/* Found Devices */}
         {scannedDevices.length > 0 && (
           <View style={styles.devicesContainer}>
             <View style={styles.devicesHeader}>
               <Text style={styles.devicesTitle}>
-                {scannedDevices.length} device{scannedDevices.length !== 1 ? 's' : ''} found
+                {scannedDevices.length} BLE device{scannedDevices.length !== 1 ? 's' : ''} found
               </Text>
               {!isScanning && (
                 <Pressable onPress={startScan}>
@@ -193,7 +298,7 @@ export function BluetoothDevicePickerModal({
             </View>
             <FlatList
               data={scannedDevices}
-              renderItem={renderDevice}
+              renderItem={renderScannedDevice}
               keyExtractor={item => item.id}
               style={styles.deviceList}
               showsVerticalScrollIndicator={false}
@@ -201,7 +306,7 @@ export function BluetoothDevicePickerModal({
           </View>
         )}
 
-        {/* Manual Entry Section */}
+        {/* ── Manual Entry Section ────────────────────────────────────── */}
         <View style={styles.manualSection}>
           {!showManualEntry ? (
             <Pressable
@@ -280,6 +385,57 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.lg,
     lineHeight: theme.typography.bodyMedium * 1.4,
   },
+  // Paired devices section
+  sectionContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: theme.typography.bodyMedium,
+    fontWeight: theme.typography.weightSemiBold,
+    color: theme.colors.text,
+    flex: 1,
+  },
+  sectionBadge: {
+    backgroundColor: `${theme.colors.primary}20`,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  sectionBadgeText: {
+    fontSize: theme.typography.bodySmall,
+    fontWeight: theme.typography.weightSemiBold,
+    color: theme.colors.primary,
+  },
+  sectionHint: {
+    fontSize: theme.typography.bodySmall,
+    color: theme.colors.textSubtle,
+    marginBottom: theme.spacing.sm,
+  },
+  deviceListContainer: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    maxHeight: 240,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.lg,
+  },
+  loadingText: {
+    fontSize: theme.typography.bodyMedium,
+    color: theme.colors.textSecondary,
+  },
+  // Scan button & states
   scanButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -414,6 +570,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textSubtle,
     marginTop: 2,
   },
+  // Manual entry
   manualSection: {
     marginBottom: theme.spacing.xl,
   },

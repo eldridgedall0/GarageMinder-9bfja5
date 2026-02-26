@@ -22,9 +22,13 @@
         "NSLocationWhenInUseUsageDescription": "GarageMinder needs your location to track mileage during trips",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "GarageMinder needs background location access to automatically track trips",
         "NSLocationAlwaysUsageDescription": "GarageMinder needs background location access to automatically track trips",
+        "NSBluetoothAlwaysUsageDescription": "GarageMinder uses Bluetooth to detect when you connect to your car and automatically start trip tracking",
+        "NSBluetoothPeripheralUsageDescription": "GarageMinder uses Bluetooth to detect your car connection for automatic trip tracking",
         "UIBackgroundModes": [
           "location",
-          "fetch"
+          "fetch",
+          "bluetooth-central",
+          "external-accessory"
         ],
         "NSFaceIDUsageDescription": "GarageMinder uses Face ID to secure your account"
       }
@@ -42,7 +46,11 @@
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT"
+        "USE_FINGERPRINT",
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_CONNECT",
+        "BLUETOOTH_SCAN"
       ]
     },
     "web": {
@@ -76,7 +84,7 @@
       [
         "react-native-ble-manager",
         {
-          "isBackgroundEnabled": false,
+          "isBackgroundEnabled": true,
           "neverForLocation": false,
           "showAlert": false
         }

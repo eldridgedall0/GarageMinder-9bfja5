@@ -178,14 +178,42 @@ export interface DiscoveredDevice {
   name: string;
   rssi?: number;
   isManuallyAdded?: boolean;
+  isPaired?: boolean;          // true if from phone's paired device list
+  deviceType?: string;         // 'classic' | 'ble' | 'dual' | 'unknown'
+  isAlreadyMapped?: boolean;   // true if already has a vehicle mapping
 }
 
 /**
- * Returns manually-added devices from mappings (since we can't list
- * system-paired Classic BT devices without native code).
- * In a future native build, replace this with actual paired device enumeration.
+ * Returns paired/bonded Bluetooth devices from the phone's settings
+ * using the native Classic BT module. Falls back to returning
+ * manually-added devices from mappings if native module unavailable.
  */
 export async function getKnownDevices(): Promise<DiscoveredDevice[]> {
+  // Try native module first — returns real paired devices
+  try {
+    const NativeBluetooth = require('../modules/expo-bluetooth-classic');
+    if (NativeBluetooth.isAvailable()) {
+      const bondedDevices = await NativeBluetooth.getBondedDevices();
+      const mappings = await getDeviceMappings();
+      const mappedIds = new Set(mappings.map(m => m.deviceId));
+      const mappedNames = new Set(mappings.map(m => m.deviceName.toLowerCase()));
+
+      return bondedDevices
+        .filter((d: any) => d.name && d.name !== 'Unknown Device')
+        .map((d: any) => ({
+          id: d.address || d.id,
+          name: d.name,
+          isManuallyAdded: false,
+          isPaired: true,
+          deviceType: d.type || 'unknown',
+          isAlreadyMapped: mappedIds.has(d.address || d.id) || mappedNames.has(d.name.toLowerCase()),
+        }));
+    }
+  } catch (error) {
+    console.warn('[bluetoothService] Native BT module not available for paired devices:', error);
+  }
+
+  // Fallback: return manually-added devices from mappings
   const mappings = await getDeviceMappings();
   return mappings.map(m => ({
     id: m.deviceId,
@@ -213,10 +241,23 @@ export function createDeviceIdFromName(deviceName: string): string {
 // BroadcastReceiver (Android) or CoreBluetooth (iOS) implementation.
 
 export async function checkIfDeviceConnected(deviceId: string): Promise<boolean> {
-  // For manually-added devices, we rely on background task polling.
-  // Return false by default — the background task manages actual state transitions.
-  // This is a placeholder for future native BT detection.
-  return false;
+  try {
+    const NativeBluetooth = require('../modules/expo-bluetooth-classic');
+    if (NativeBluetooth.isAvailable()) {
+      return await NativeBluetooth.isDeviceConnected(deviceId);
+    }
+  } catch {
+    // Native module not available
+  }
+
+  // Fallback: check via BLE if available
+  try {
+    const { isDeviceConnected } = await import('./bluetoothConnectionService');
+    const result = await isDeviceConnected(deviceId);
+    return result === true;
+  } catch {
+    return false;
+  }
 }
 
 // ─── BLE Scanning ─────────────────────────────────────────────────────────────
@@ -341,6 +382,17 @@ export async function stopBluetoothScan(): Promise<void> {
 }
 
 export async function getBluetoothState(): Promise<'on' | 'off' | 'unavailable'> {
+  // Try native Classic BT module first
+  try {
+    const NativeBluetooth = require('../modules/expo-bluetooth-classic');
+    if (NativeBluetooth.isAvailable()) {
+      return await NativeBluetooth.getBluetoothState();
+    }
+  } catch {
+    // Fall through to BLE check
+  }
+
+  // Fallback to BLE manager
   if (Platform.OS === 'web' || !bleManagerAvailable || !BleManager) return 'unavailable';
   
   try {

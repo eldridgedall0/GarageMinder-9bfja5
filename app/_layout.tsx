@@ -77,6 +77,34 @@ export default function RootLayout() {
       const { requestNotificationPermissions } = await import('../services/notificationService');
       await requestNotificationPermissions();
     })();
+
+    // Start native Bluetooth connection listener for AutoStart
+    // This registers the BroadcastReceiver (Android) / EA notifications (iOS)
+    // so connection events are captured even before the user opens Settings
+    let btCleanup: (() => void) | null = null;
+    (async () => {
+      try {
+        const NativeBluetooth = require('../modules/expo-bluetooth-classic');
+        if (NativeBluetooth.isAvailable()) {
+          await NativeBluetooth.startConnectionListener();
+          console.log('[RootLayout] Native Bluetooth listener started');
+        }
+      } catch (error) {
+        console.warn('[RootLayout] Native Bluetooth not available:', error);
+      }
+    })();
+
+    return () => {
+      // Cleanup is handled by module OnDestroy, but be explicit
+      (async () => {
+        try {
+          const NativeBluetooth = require('../modules/expo-bluetooth-classic');
+          if (NativeBluetooth.isAvailable()) {
+            await NativeBluetooth.stopConnectionListener();
+          }
+        } catch {}
+      })();
+    };
   }, []);
 
   return (
