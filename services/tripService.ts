@@ -44,7 +44,7 @@ export async function saveTrip(trip: Trip): Promise<void> {
 export async function deleteTrip(tripId: string): Promise<void> {
   const trips = await getTrips();
   const filtered = trips.filter(t => t.id !== tripId);
-  await AsyncStorage.setItem(TRIPS_KEY, JSON.stringify(filtered));
+  await storage.setItem(TRIPS_KEY, JSON.stringify(filtered));
 }
 
 export async function getActiveTrip(): Promise<Trip | null> {
@@ -103,25 +103,72 @@ export async function setActiveVehicle(vehicleId: string): Promise<void> {
   await storage.setItem(ACTIVE_VEHICLE_KEY, vehicleId);
 }
 
-// Simulated sync
-export async function syncTrips(tripIds: string[]): Promise<{ success: boolean; synced: number }> {
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
+// Sync trips: update local trip status and push odometer to server via vehicleService
+// Returns sync result with discrepancy info if server odometer differs from local
+export async function syncTrips(tripIds: string[]): Promise<{ 
+  success: boolean; 
+  synced: number;
+  discrepancies?: Array<{
+    vehicleId: string;
+    vehicleName: string;
+    localOdometer: number;
+    serverOdometer: number;
+  }>;
+}> {
+  const { getVehicles, syncVehiclesWithDiscrepancyCheck } = await import('./vehicleService');
   
   const trips = await getTrips();
+  const localVehicles = await getVehicles();
   let syncedCount = 0;
+
+  // Collect the highest odometer per vehicle from the trips being synced
+  const vehicleOdometers = new Map<string, number>();
   
   for (const tripId of tripIds) {
     const trip = trips.find(t => t.id === tripId);
     if (trip && trip.status !== 'active') {
-      trip.status = 'synced';
-      trip.syncedAt = new Date();
-      await saveTrip(trip);
-      syncedCount++;
+      const effectiveDistance = trip.adjustedDistance ?? trip.calculatedDistance;
+      const endOdometer = trip.startOdometer + effectiveDistance;
+      
+      const current = vehicleOdometers.get(trip.vehicleId) ?? 0;
+      if (endOdometer > current) {
+        vehicleOdometers.set(trip.vehicleId, Math.round(endOdometer));
+      }
     }
   }
-  
-  return { success: true, synced: syncedCount };
+
+  // Also consider current local vehicle odometers (may be higher from other trips)
+  for (const vehicle of localVehicles) {
+    const tripMax = vehicleOdometers.get(vehicle.id) ?? 0;
+    if (vehicle.currentOdometer > tripMax) {
+      vehicleOdometers.set(vehicle.id, Math.round(vehicle.currentOdometer));
+    }
+  }
+
+  try {
+    // Push to server and check for discrepancies
+    const syncResult = await syncVehiclesWithDiscrepancyCheck(vehicleOdometers);
+
+    // Mark trips as synced locally
+    for (const tripId of tripIds) {
+      const trip = trips.find(t => t.id === tripId);
+      if (trip && trip.status !== 'active') {
+        trip.status = 'synced';
+        trip.syncedAt = new Date();
+        await saveTrip(trip);
+        syncedCount++;
+      }
+    }
+
+    return { 
+      success: true, 
+      synced: syncedCount,
+      discrepancies: syncResult.discrepancies,
+    };
+  } catch (error) {
+    console.error('[TripService] Sync failed:', error);
+    return { success: false, synced: 0 };
+  }
 }
 
 // Calculate distance (simulated GPS)

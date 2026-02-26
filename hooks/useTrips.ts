@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Trip, TripFilters, SortOption } from '../types/trip';
 import { getTrips, deleteTrip as deleteServiceTrip, saveTrip } from '../services/tripService';
+import { updateVehicleOdometer } from '../services/vehicleService';
 
 export function useTrips() {
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -70,7 +71,43 @@ export function useTrips() {
   }, [trips, filters, sortBy]);
 
   const updateTrip = async (trip: Trip) => {
-    await saveTrip({ ...trip, status: 'edited' });
+    // Recalculate endOdometer based on adjustedDistance (if set) or calculatedDistance
+    const effectiveDistance = trip.adjustedDistance ?? trip.calculatedDistance;
+    const newEndOdometer = trip.startOdometer + effectiveDistance;
+
+    const updatedTrip: Trip = {
+      ...trip,
+      endOdometer: newEndOdometer,
+      status: 'edited',
+    };
+
+    // Save the updated trip locally
+    await saveTrip(updatedTrip);
+
+    // Update the vehicle's odometer locally to reflect the new end odometer
+    // We need to check if this trip is the latest for the vehicle to avoid
+    // overwriting a higher odometer from a newer trip
+    const allCurrentTrips = await getTrips();
+    const vehicleTrips = allCurrentTrips
+      .filter(t => t.vehicleId === trip.vehicleId && t.status !== 'active' && t.id !== trip.id)
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+
+    // Find the highest endOdometer among all completed trips for this vehicle
+    let highestOdometer = newEndOdometer;
+    for (const vt of vehicleTrips) {
+      const vtEndOdo = vt.endOdometer ?? (vt.startOdometer + (vt.adjustedDistance ?? vt.calculatedDistance));
+      if (vtEndOdo > highestOdometer) {
+        highestOdometer = vtEndOdo;
+      }
+    }
+
+    try {
+      await updateVehicleOdometer(trip.vehicleId, highestOdometer);
+      console.log(`[useTrips] Updated vehicle ${trip.vehicleId} odometer to ${highestOdometer}`);
+    } catch (error) {
+      console.error('[useTrips] Failed to update vehicle odometer locally:', error);
+    }
+
     await loadTrips();
   };
 

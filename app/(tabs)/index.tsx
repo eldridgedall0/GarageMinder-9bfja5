@@ -14,10 +14,13 @@ import { getAutoStartSettings, getAutoStartState, getBluetoothState } from '../.
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, vehicles, vehiclesLoading, vehicleError, reloadVehicles } = useAuth();
+  const { isAuthenticated, vehicles, vehiclesLoading, vehicleError, reloadVehicles, updateVehicleOdometerInState } = useAuth();
   const [activeVehicleId, setActiveVehicleId] = useState<string | null>(null);
   const activeVehicle = vehicles.find(v => v.id === activeVehicleId) || vehicles[0] || null;
-  const { activeTrip, isTracking, startTrip, stopTrip } = useTripTracking({ activeVehicle });
+  const { activeTrip, isTracking, startTrip, stopTrip } = useTripTracking({ 
+    activeVehicle,
+    onVehicleOdometerUpdated: updateVehicleOdometerInState,
+  });
   const { getPendingCount } = useTrips();
   const { showAlert } = useAlert();
   const [showVehicleSelector, setShowVehicleSelector] = useState(false);

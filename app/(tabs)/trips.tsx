@@ -10,6 +10,8 @@ import { Button } from '../../components/ui/Button';
 import { useTrips } from '../../hooks/useTrips';
 import { useVehicles } from '../../hooks/useVehicles';
 import { syncTrips } from '../../services/tripService';
+import { forceUpdateOdometerOnServer, acceptServerOdometer } from '../../services/vehicleService';
+import { useAuth } from '../../hooks/useAuth';
 import { useAlert } from '@/template';
 import { TripStatus } from '../../types/trip';
 
@@ -17,7 +19,8 @@ export default function TripsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { trips, allTrips, loading, filters, setFilters, refreshTrips, getPendingCount } = useTrips();
-  const { vehicles } = useVehicles();
+  const { vehicles, refreshVehicles } = useVehicles();
+  const { reloadVehicles } = useAuth();
   const { showAlert } = useAlert();
   const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -29,6 +32,49 @@ export default function TripsScreen() {
     setRefreshing(false);
   };
 
+  const handleDiscrepancy = async (discrepancy: {
+    vehicleId: string;
+    vehicleName: string;
+    localOdometer: number;
+    serverOdometer: number;
+  }) => {
+    return new Promise<void>((resolve) => {
+      showAlert(
+        'Odometer Discrepancy',
+        `${discrepancy.vehicleName}\n\nYour device: ${discrepancy.localOdometer.toLocaleString()} mi\nWeb app (server): ${discrepancy.serverOdometer.toLocaleString()} mi\n\nThe web app has a different odometer value. Which value would you like to keep?`,
+        [
+          {
+            text: `Keep Server (${discrepancy.serverOdometer.toLocaleString()})`,
+            onPress: async () => {
+              try {
+                await acceptServerOdometer(discrepancy.vehicleId, discrepancy.serverOdometer);
+              } catch (e) {
+                console.error('[TripsScreen] Failed to accept server odometer:', e);
+              }
+              resolve();
+            },
+          },
+          {
+            text: `Use Local (${discrepancy.localOdometer.toLocaleString()})`,
+            onPress: async () => {
+              try {
+                await forceUpdateOdometerOnServer(discrepancy.vehicleId, discrepancy.localOdometer);
+              } catch (e: any) {
+                showAlert('Update Failed', e?.message || 'Failed to update server odometer. You can try again later.');
+              }
+              resolve();
+            },
+          },
+          {
+            text: 'Skip (Decide Later)',
+            style: 'cancel',
+            onPress: () => resolve(),
+          },
+        ]
+      );
+    });
+  };
+
   const handleSync = async () => {
     const pendingTrips = allTrips.filter(t => t.status === 'completed' || t.status === 'edited');
     
@@ -38,14 +84,30 @@ export default function TripsScreen() {
     }
 
     setSyncing(true);
-    const result = await syncTrips(pendingTrips.map(t => t.id));
-    setSyncing(false);
+    try {
+      const result = await syncTrips(pendingTrips.map(t => t.id));
 
-    if (result.success) {
-      showAlert('Sync Complete', `${result.synced} trips synced successfully`);
-      await refreshTrips();
-    } else {
-      showAlert('Sync Failed', 'Unable to sync trips. Please try again.');
+      if (result.success) {
+        // Handle discrepancies one at a time
+        if (result.discrepancies && result.discrepancies.length > 0) {
+          for (const discrepancy of result.discrepancies) {
+            await handleDiscrepancy(discrepancy);
+          }
+        }
+
+        showAlert('Sync Complete', `${result.synced} trip${result.synced !== 1 ? 's' : ''} synced successfully`);
+        
+        // Refresh both trips and vehicles to reflect updated data
+        await refreshTrips();
+        await reloadVehicles();
+      } else {
+        showAlert('Sync Failed', 'Unable to sync trips. Please check your connection and try again.');
+      }
+    } catch (error: any) {
+      console.error('[TripsScreen] Sync error:', error);
+      showAlert('Sync Error', error?.message || 'An unexpected error occurred during sync.');
+    } finally {
+      setSyncing(false);
     }
   };
 

@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { useTrips } from '../hooks/useTrips';
 import { useVehicles } from '../hooks/useVehicles';
+import { useAuth } from '../hooks/useAuth';
 import { useAlert } from '@/template';
 import { Trip } from '../types/trip';
 
@@ -18,6 +19,7 @@ export default function TripDetailsScreen() {
   const insets = useSafeAreaInsets();
   const { allTrips, updateTrip, deleteTrip } = useTrips();
   const { vehicles } = useVehicles();
+  const { reloadVehicles } = useAuth();
   const { showAlert } = useAlert();
 
   const [trip, setTrip] = useState<Trip | null>(null);
@@ -74,11 +76,23 @@ export default function TripDetailsScreen() {
   const handleSave = async () => {
     const newAdjustedDistance = adjustedDistance ? parseFloat(adjustedDistance) : null;
     
+    // Recalculate endOdometer based on adjusted distance (or fall back to calculated)
+    const effectiveDistance = newAdjustedDistance ?? trip.calculatedDistance;
+    const newEndOdometer = trip.startOdometer + effectiveDistance;
+
     await updateTrip({
       ...trip,
       adjustedDistance: newAdjustedDistance,
+      endOdometer: newEndOdometer,
       notes,
     });
+
+    // Reload vehicles into AuthContext so Dashboard and other screens see updated odometer
+    try {
+      await reloadVehicles();
+    } catch (e) {
+      console.warn('[TripDetails] Failed to reload vehicles after trip edit:', e);
+    }
 
     showAlert('Success', 'Trip updated successfully');
     setIsEditing(false);
@@ -220,7 +234,9 @@ export default function TripDetailsScreen() {
             <View style={styles.odometerItem}>
               <Text style={styles.odometerLabel}>End</Text>
               <Text style={styles.odometerValue}>
-                {trip.endOdometer ? trip.endOdometer.toLocaleString() : '---'} mi
+                {trip.endOdometer 
+                  ? Math.round(trip.startOdometer + displayDistance).toLocaleString() 
+                  : '---'} mi
               </Text>
             </View>
           </View>

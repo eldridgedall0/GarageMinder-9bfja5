@@ -13,9 +13,10 @@ import { syncTrips } from '../services/tripService';
 
 interface UseTripTrackingOptions {
   activeVehicle: Vehicle | null;
+  onVehicleOdometerUpdated?: (vehicleId: string, newOdometer: number) => void;
 }
 
-export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
+export function useTripTracking({ activeVehicle, onVehicleOdometerUpdated }: UseTripTrackingOptions) {
   const [activeTrip, setActiveTripState] = useState<Trip | null>(null);
   const [isTracking, setIsTracking] = useState(false);
 
@@ -23,11 +24,16 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
   const activeTripRef = useRef<Trip | null>(null);
   const activeVehicleRef = useRef<Vehicle | null>(activeVehicle);
   const isFinalizingRef = useRef(false); // prevent double-finalize
+  const onVehicleOdometerUpdatedRef = useRef(onVehicleOdometerUpdated);
 
   // Keep refs in sync with state/props
   useEffect(() => {
     activeVehicleRef.current = activeVehicle;
   }, [activeVehicle]);
+
+  useEffect(() => {
+    onVehicleOdometerUpdatedRef.current = onVehicleOdometerUpdated;
+  }, [onVehicleOdometerUpdated]);
 
   // Sync activeTripState → ref
   useEffect(() => {
@@ -77,6 +83,8 @@ export function useTripTracking({ activeVehicle }: UseTripTrackingOptions) {
       if (vehicle) {
         try {
           await updateVehicleOdometer(vehicle.id, endOdometer);
+          // Notify parent (e.g. Dashboard) so AuthContext state is updated in real-time
+          onVehicleOdometerUpdatedRef.current?.(vehicle.id, endOdometer);
         } catch (odometerError) {
           console.error('[useTripTracking] Odometer update failed (trip still saved):', odometerError);
         }
